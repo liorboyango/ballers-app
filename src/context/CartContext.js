@@ -1,234 +1,216 @@
-/**
- * CartContext - Shopping Cart State Management
- * Manages cart items, quantities, customizations, and totals.
- * Persists cart to localStorage for session continuity.
- */
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
-
-// Cart action types
-const CART_ACTIONS = {
-  ADD_ITEM: 'ADD_ITEM',
-  REMOVE_ITEM: 'REMOVE_ITEM',
-  UPDATE_QUANTITY: 'UPDATE_QUANTITY',
-  UPDATE_CUSTOMIZATION: 'UPDATE_CUSTOMIZATION',
-  CLEAR_CART: 'CLEAR_CART',
-  RESTORE_CART: 'RESTORE_CART',
-  TOGGLE_DRAWER: 'TOGGLE_DRAWER',
-};
-
-// Initial cart state
-const initialState = {
-  items: [],
-  isDrawerOpen: false,
-};
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { cartAPI } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 
 /**
- * Calculate cart totals from items array.
+ * CartContext
+ * Manages shopping cart state globally.
+ * Syncs with backend API when user is authenticated.
+ * Falls back to localStorage for guest users.
  */
-function calculateTotals(items) {
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  return { itemCount, subtotal };
-}
-
-/**
- * Generate a unique cart item key based on product + customization.
- */
-function generateCartKey(productId, size, customization) {
-  const custStr = customization
-    ? `${customization.playerName || ''}-${customization.playerNumber || ''}`
-    : '';
-  return `${productId}-${size}-${custStr}`;
-}
-
-/**
- * Cart reducer - handles all cart state transitions.
- */
-function cartReducer(state, action) {
-  switch (action.type) {
-    case CART_ACTIONS.ADD_ITEM: {
-      const { product, size, quantity = 1, customization } = action.payload;
-      const cartKey = generateCartKey(product._id, size, customization);
-      const existingIndex = state.items.findIndex((item) => item.cartKey === cartKey);
-
-      if (existingIndex >= 0) {
-        // Update quantity of existing item
-        const updatedItems = state.items.map((item, idx) =>
-          idx === existingIndex
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-        return { ...state, items: updatedItems };
-      }
-
-      // Add new item
-      const newItem = {
-        cartKey,
-        productId: product._id,
-        name: product.name,
-        teamName: product.teamName,
-        price: product.price,
-        image: product.images?.[0] || '',
-        size,
-        quantity,
-        customization: customization || null,
-      };
-
-      return { ...state, items: [...state.items, newItem] };
-    }
-
-    case CART_ACTIONS.REMOVE_ITEM: {
-      return {
-        ...state,
-        items: state.items.filter((item) => item.cartKey !== action.payload),
-      };
-    }
-
-    case CART_ACTIONS.UPDATE_QUANTITY: {
-      const { cartKey, quantity } = action.payload;
-      if (quantity <= 0) {
-        return {
-          ...state,
-          items: state.items.filter((item) => item.cartKey !== cartKey),
-        };
-      }
-      return {
-        ...state,
-        items: state.items.map((item) =>
-          item.cartKey === cartKey ? { ...item, quantity } : item
-        ),
-      };
-    }
-
-    case CART_ACTIONS.UPDATE_CUSTOMIZATION: {
-      const { cartKey, customization } = action.payload;
-      return {
-        ...state,
-        items: state.items.map((item) =>
-          item.cartKey === cartKey ? { ...item, customization } : item
-        ),
-      };
-    }
-
-    case CART_ACTIONS.CLEAR_CART:
-      return { ...state, items: [] };
-
-    case CART_ACTIONS.RESTORE_CART:
-      return { ...state, items: action.payload };
-
-    case CART_ACTIONS.TOGGLE_DRAWER:
-      return {
-        ...state,
-        isDrawerOpen: action.payload !== undefined ? action.payload : !state.isDrawerOpen,
-      };
-
-    default:
-      return state;
-  }
-}
-
-// Create context
 export const CartContext = createContext(null);
 
-/**
- * CartProvider - wraps the app and provides cart state.
- */
-export function CartProvider({ children }) {
-  const [state, dispatch] = useReducer(cartReducer, initialState);
+export const CartProvider = ({ children }) => {
+  const { user, token } = useAuth();
+  const [cart, setCart] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Restore cart from localStorage on mount
-  useEffect(() => {
-    const savedCart = localStorage.getItem('ballers_cart');
-    if (savedCart) {
-      try {
-        const items = JSON.parse(savedCart);
-        if (Array.isArray(items) && items.length > 0) {
-          dispatch({ type: CART_ACTIONS.RESTORE_CART, payload: items });
+  // Fetch cart from API (authenticated users)
+  const fetchCart = useCallback(async () => {
+    if (!token) {
+      // Load from localStorage for guests
+      const stored = localStorage.getItem('ballers_guest_cart');
+      if (stored) {
+        try {
+          setCart(JSON.parse(stored));
+        } catch {
+          setCart({ items: [], totalItems: 0, totalPrice: 0 });
         }
-      } catch (err) {
-        localStorage.removeItem('ballers_cart');
+      } else {
+        setCart({ items: [], totalItems: 0, totalPrice: 0 });
       }
+      return;
     }
-  }, []);
 
-  // Persist cart to localStorage whenever items change
+    setLoading(true);
+    setError('');
+    try {
+      const response = await cartAPI.getCart();
+      setCart(response.data.data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load cart');
+      setCart({ items: [], totalItems: 0, totalPrice: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  // Fetch cart on mount and when auth changes
   useEffect(() => {
-    localStorage.setItem('ballers_cart', JSON.stringify(state.items));
-  }, [state.items]);
-
-  // Computed totals
-  const { itemCount, subtotal } = calculateTotals(state.items);
+    fetchCart();
+  }, [fetchCart]);
 
   /**
-   * Add a product to the cart.
+   * Add item to cart
+   * @param {Object} params - { productId, quantity, customization: { size, number, name } }
    */
-  const addToCart = useCallback((product, size, quantity = 1, customization = null) => {
-    dispatch({
-      type: CART_ACTIONS.ADD_ITEM,
-      payload: { product, size, quantity, customization },
-    });
-  }, []);
+  const addToCart = useCallback(
+    async ({ productId, quantity = 1, customization = {} }) => {
+      if (!token) {
+        // Guest cart: store locally
+        setCart((prev) => {
+          const items = prev?.items || [];
+          const existingIdx = items.findIndex(
+            (i) =>
+              i.productId === productId &&
+              i.customization?.size === customization.size &&
+              i.customization?.number === customization.number &&
+              i.customization?.name === customization.name
+          );
+
+          let newItems;
+          if (existingIdx >= 0) {
+            newItems = items.map((item, idx) =>
+              idx === existingIdx
+                ? { ...item, quantity: item.quantity + quantity }
+                : item
+            );
+          } else {
+            newItems = [
+              ...items,
+              {
+                _id: `guest_${Date.now()}`,
+                productId,
+                quantity,
+                customization,
+                price: 0,
+              },
+            ];
+          }
+
+          const newCart = {
+            items: newItems,
+            totalItems: newItems.reduce((sum, i) => sum + i.quantity, 0),
+            totalPrice: newItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
+          };
+          localStorage.setItem('ballers_guest_cart', JSON.stringify(newCart));
+          return newCart;
+        });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await cartAPI.addToCart({ productId, quantity, customization });
+        setCart(response.data.data);
+      } catch (err) {
+        const message = err.response?.data?.error || 'Failed to add to cart';
+        throw new Error(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token]
+  );
 
   /**
-   * Remove an item from the cart by cartKey.
+   * Update cart item quantity or customization
+   * @param {Object} params - { itemId, quantity?, customization? }
    */
-  const removeFromCart = useCallback((cartKey) => {
-    dispatch({ type: CART_ACTIONS.REMOVE_ITEM, payload: cartKey });
-  }, []);
+  const updateCartItem = useCallback(
+    async ({ itemId, quantity, customization }) => {
+      if (!token) {
+        setCart((prev) => {
+          const newItems = (prev?.items || []).map((item) =>
+            item._id === itemId
+              ? {
+                  ...item,
+                  ...(quantity !== undefined ? { quantity } : {}),
+                  ...(customization ? { customization } : {}),
+                }
+              : item
+          );
+          const newCart = {
+            ...prev,
+            items: newItems,
+            totalItems: newItems.reduce((sum, i) => sum + i.quantity, 0),
+            totalPrice: newItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
+          };
+          localStorage.setItem('ballers_guest_cart', JSON.stringify(newCart));
+          return newCart;
+        });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await cartAPI.updateCart({ itemId, quantity, customization });
+        setCart(response.data.data);
+      } catch (err) {
+        throw new Error(err.response?.data?.error || 'Failed to update cart');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token]
+  );
 
   /**
-   * Update the quantity of a cart item.
+   * Remove item from cart
+   * @param {string} itemId - Cart item ID
    */
-  const updateQuantity = useCallback((cartKey, quantity) => {
-    dispatch({ type: CART_ACTIONS.UPDATE_QUANTITY, payload: { cartKey, quantity } });
-  }, []);
+  const removeFromCart = useCallback(
+    async (itemId) => {
+      if (!token) {
+        setCart((prev) => {
+          const newItems = (prev?.items || []).filter((i) => i._id !== itemId);
+          const newCart = {
+            ...prev,
+            items: newItems,
+            totalItems: newItems.reduce((sum, i) => sum + i.quantity, 0),
+            totalPrice: newItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
+          };
+          localStorage.setItem('ballers_guest_cart', JSON.stringify(newCart));
+          return newCart;
+        });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await cartAPI.removeFromCart(itemId);
+        setCart(response.data.data);
+      } catch (err) {
+        throw new Error(err.response?.data?.error || 'Failed to remove item');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token]
+  );
 
   /**
-   * Update customization (name/number) for a cart item.
-   */
-  const updateCustomization = useCallback((cartKey, customization) => {
-    dispatch({ type: CART_ACTIONS.UPDATE_CUSTOMIZATION, payload: { cartKey, customization } });
-  }, []);
-
-  /**
-   * Clear all items from the cart.
+   * Clear the entire cart
    */
   const clearCart = useCallback(() => {
-    dispatch({ type: CART_ACTIONS.CLEAR_CART });
-  }, []);
-
-  /**
-   * Toggle the cart drawer open/closed.
-   */
-  const toggleDrawer = useCallback((open) => {
-    dispatch({ type: CART_ACTIONS.TOGGLE_DRAWER, payload: open });
+    setCart({ items: [], totalItems: 0, totalPrice: 0 });
+    localStorage.removeItem('ballers_guest_cart');
   }, []);
 
   const value = {
-    items: state.items,
-    isDrawerOpen: state.isDrawerOpen,
-    itemCount,
-    subtotal,
+    cart,
+    loading,
+    error,
     addToCart,
+    updateCartItem,
     removeFromCart,
-    updateQuantity,
-    updateCustomization,
     clearCart,
-    toggleDrawer,
+    fetchCart,
+    totalItems: cart?.totalItems || 0,
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
-}
-
-/**
- * useCart hook - consume cart context.
- */
-export function useCart() {
-  const context = useContext(CartContext);
-  if (!context) {
-    throw new Error('useCart must be used within a CartProvider');
-  }
-  return context;
-}
+};
 
 export default CartContext;

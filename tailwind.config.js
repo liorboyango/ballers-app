@@ -23,6 +23,7 @@ module.exports = {
           border: '#2A3550',
           success: '#27AE60',
         },
+        surface: '#16213E',
       },
       fontFamily: {
         bebas: ['Bebas Neue', 'sans-serif'],
@@ -31,39 +32,34 @@ module.exports = {
       },
       fontSize: {
         'hero': ['72px', { lineHeight: '80px' }],
-        'section': ['40px', { lineHeight: '48px' }],
-        'jersey': ['48px', { lineHeight: '56px' }],
+        'section': ['40px', { lineHeight: '1.2' }],
+        'jersey': ['48px', { lineHeight: '1' }],
       },
-      maxWidth: {
-        'container': '1280px',
+      boxShadow: {
+        'gold-glow': '0 8px 32px rgba(232, 197, 71, 0.15)',
+        'gold-strong': '0 4px 20px rgba(232, 197, 71, 0.3)',
       },
       animation: {
-        'fade-in': 'fadeIn 0.2s ease-in-out',
         'slide-in-right': 'slideInRight 0.3s ease-out',
-        'pulse-gold': 'pulseGold 0.6s ease-in-out',
-        'skeleton': 'skeleton 1.5s ease-in-out infinite',
+        'fade-in': 'fadeIn 0.2s ease-in-out',
+        'pulse-gold': 'pulseGold 1s ease-in-out',
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
         slideInRight: {
-          '0%': { transform: 'translateX(100%)' },
-          '100%': { transform: 'translateX(0)' },
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         pulseGold: {
           '0%, 100%': { boxShadow: '0 0 0 0 rgba(232, 197, 71, 0.4)' },
           '50%': { boxShadow: '0 0 0 8px rgba(232, 197, 71, 0)' },
         },
-        skeleton: {
-          '0%': { backgroundColor: '#16213E' },
-          '50%': { backgroundColor: '#2A3550' },
-          '100%': { backgroundColor: '#16213E' },
-        },
       },
-      backdropBlur: {
-        xs: '2px',
+      maxWidth: {
+        'screen-xl': '1280px',
       },
     },
   },

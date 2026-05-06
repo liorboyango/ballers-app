@@ -1,15 +1,17 @@
-/**
- * useAuth Hook
- * Convenience hook to access authentication context.
- */
-import { useAuth as useAuthContext } from '../context/AuthContext';
+import { useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
 
 /**
- * Hook to access auth state and actions.
- * @returns {Object} Auth state and methods
+ * useAuth hook
+ * Provides access to auth state and actions from AuthContext.
+ * Must be used within an AuthProvider.
  */
-export function useAuth() {
-  return useAuthContext();
-}
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 export default useAuth;

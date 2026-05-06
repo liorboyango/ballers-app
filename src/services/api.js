@@ -1,27 +1,23 @@
-/**
- * Ballers API Service
- * Axios instance configured with base URL and auth interceptors.
- * All API calls go through this service.
- */
 import axios from 'axios';
 
-// Base URL from environment variable with fallback
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
 /**
- * Axios instance with default configuration.
+ * Axios instance configured for the Ballers API.
+ * Base URL from environment variable with fallback to localhost.
+ * Automatically attaches JWT token from localStorage.
  */
+const API_BASE_URL = process.env.REACT_APP_API_URL
+  ? `${process.env.REACT_APP_API_URL}/api`
+  : 'http://localhost:5000/api';
+
 const api = axios.create({
-  baseURL: `${API_BASE_URL}/api`,
-  timeout: 15000,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-/**
- * Request interceptor - attach auth token to every request.
- */
+// Request interceptor: attach JWT token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('ballers_token');
@@ -33,19 +29,18 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-/**
- * Response interceptor - handle global errors.
- */
+// Response interceptor: handle 401 globally
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid - clear auth data
+      // Token expired or invalid - clear auth
       localStorage.removeItem('ballers_token');
-      localStorage.removeItem('ballers_user');
-      delete api.defaults.headers.common['Authorization'];
-      // Redirect to login if not already there
-      if (window.location.pathname !== '/login') {
+      // Only redirect if not already on auth pages
+      if (
+        !window.location.pathname.includes('/login') &&
+        !window.location.pathname.includes('/register')
+      ) {
         window.location.href = '/login';
       }
     }
@@ -54,102 +49,100 @@ api.interceptors.response.use(
 );
 
 // ─── Teams API ───────────────────────────────────────────────────────────────
+export const teamsAPI = {
+  /**
+   * Get all teams with optional filters
+   * @param {Object} params - { page, limit, group, search, sort }
+   */
+  getAll: (params = {}) => api.get('/teams', { params }),
 
-/**
- * Fetch all teams.
- * @returns {Promise<Array>} List of teams
- */
-export const getTeams = () => api.get('/teams');
-
-/**
- * Fetch a single team by ID.
- * @param {string} teamId
- * @returns {Promise<Object>} Team data
- */
-export const getTeamById = (teamId) => api.get(`/teams/${teamId}`);
+  /**
+   * Get a single team by ID
+   * @param {string} id - Team ID
+   */
+  getById: (id) => api.get(`/teams/${id}`),
+};
 
 // ─── Products API ─────────────────────────────────────────────────────────────
+export const productsAPI = {
+  /**
+   * Get all products with optional filters
+   * @param {Object} params - { teamId, kitType, size, minPrice, maxPrice, page, limit, sort, search, inStock }
+   */
+  getAll: (params = {}) => api.get('/products', { params }),
 
-/**
- * Fetch products with optional filters.
- * @param {Object} params - { teamId, kitType, size, page, limit }
- * @returns {Promise<Object>} { products, total, page, limit }
- */
-export const getProducts = (params = {}) => api.get('/products', { params });
-
-/**
- * Fetch a single product by ID.
- * @param {string} productId
- * @returns {Promise<Object>} Product data
- */
-export const getProductById = (productId) => api.get(`/products/${productId}`);
-
-// ─── Cart API ─────────────────────────────────────────────────────────────────
-
-/**
- * Get the current user's cart.
- * @returns {Promise<Object>} Cart data
- */
-export const getCart = () => api.get('/cart');
-
-/**
- * Add an item to the cart.
- * @param {Object} item - { productId, size, quantity, customization }
- * @returns {Promise<Object>} Updated cart
- */
-export const addToCartAPI = (item) => api.post('/cart/add', item);
-
-/**
- * Update a cart item.
- * @param {string} itemId
- * @param {Object} updates - { quantity, customization }
- * @returns {Promise<Object>} Updated cart
- */
-export const updateCartItem = (itemId, updates) => api.put(`/cart/update/${itemId}`, updates);
-
-/**
- * Remove an item from the cart.
- * @param {string} itemId
- * @returns {Promise<Object>} Updated cart
- */
-export const removeCartItem = (itemId) => api.delete(`/cart/item/${itemId}`);
-
-// ─── Orders API ───────────────────────────────────────────────────────────────
-
-/**
- * Create a new order.
- * @param {Object} orderData - { items, billing, shipping, payment }
- * @returns {Promise<Object>} Created order
- */
-export const createOrder = (orderData) => api.post('/orders', orderData);
-
-/**
- * Get the current user's orders.
- * @returns {Promise<Array>} List of orders
- */
-export const getOrders = () => api.get('/orders');
-
-/**
- * Get a single order by ID.
- * @param {string} orderId
- * @returns {Promise<Object>} Order data
- */
-export const getOrderById = (orderId) => api.get(`/orders/${orderId}`);
+  /**
+   * Get a single product by ID
+   * @param {string} id - Product ID
+   */
+  getById: (id) => api.get(`/products/${id}`),
+};
 
 // ─── Auth API ─────────────────────────────────────────────────────────────────
+export const authAPI = {
+  /**
+   * Register a new user
+   * @param {Object} data - { name, email, password }
+   */
+  register: (data) => api.post('/auth/register', data),
 
-/**
- * Login with email and password.
- * @param {Object} credentials - { email, password }
- * @returns {Promise<Object>} { token, user }
- */
-export const loginUser = (credentials) => api.post('/auth/login', credentials);
+  /**
+   * Login user
+   * @param {Object} data - { email, password }
+   */
+  login: (data) => api.post('/auth/login', data),
 
-/**
- * Register a new user.
- * @param {Object} userData - { name, email, password }
- * @returns {Promise<Object>} { token, user }
- */
-export const registerUser = (userData) => api.post('/auth/register', userData);
+  /**
+   * Get current authenticated user
+   */
+  getMe: () => api.get('/auth/me'),
+};
+
+// ─── Cart API ─────────────────────────────────────────────────────────────────
+export const cartAPI = {
+  /**
+   * Get current user's cart
+   */
+  getCart: () => api.get('/cart'),
+
+  /**
+   * Add item to cart
+   * @param {Object} data - { productId, quantity, customization: { size, number, name } }
+   */
+  addToCart: (data) => api.post('/cart/add', data),
+
+  /**
+   * Update cart item
+   * @param {Object} data - { itemId, quantity?, customization? }
+   */
+  updateCart: (data) => api.put('/cart/update', data),
+
+  /**
+   * Remove item from cart
+   * @param {string} itemId - Cart item ID
+   */
+  removeFromCart: (itemId) => api.delete('/cart/item', { data: { itemId } }),
+};
+
+// ─── Orders API ───────────────────────────────────────────────────────────────
+export const ordersAPI = {
+  /**
+   * Create a new order
+   * @param {Object} data - { shippingAddress, paymentInfo }
+   */
+  createOrder: (data) => api.post('/orders/create', data),
+
+  /**
+   * Get user's orders
+   * @param {Object} params - { page, limit }
+   */
+  getOrders: (params = {}) => api.get('/orders', { params }),
+
+  /**
+   * Get a single order by ID
+   * @param {string} id - Order ID
+   */
+  getOrderById: (id) => api.get(`/orders/${id}`),
+};
 
 export default api;

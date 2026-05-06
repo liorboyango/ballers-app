@@ -1,15 +1,17 @@
-/**
- * useCart Hook
- * Convenience hook to access cart context.
- */
-import { useCart as useCartContext } from '../context/CartContext';
+import { useContext } from 'react';
+import { CartContext } from '../context/CartContext';
 
 /**
- * Hook to access cart state and actions.
- * @returns {Object} Cart state and methods
+ * useCart hook
+ * Provides access to cart state and actions from CartContext.
+ * Must be used within a CartProvider.
  */
-export function useCart() {
-  return useCartContext();
-}
+export const useCart = () => {
+  const context = useContext(CartContext);
+  if (!context) {
+    throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+};
 
 export default useCart;
