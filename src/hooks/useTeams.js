@@ -3,7 +3,7 @@
  * Custom hook for fetching teams data with loading and error states.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { getTeams, getTeamById } from '../services/teamsApi';
+import { getTeams, getAllTeams, getTeamById } from '../services/teamsApi';
 
 /**
  * Hook to fetch a list of teams
@@ -21,7 +21,9 @@ export const useTeams = (initialParams = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await getTeams(params);
+      const { fetchAll, ...queryParams } = params;
+      const fetcher = fetchAll ? getAllTeams : getTeams;
+      const result = await fetcher(queryParams);
       setTeams(result.data || []);
       setPagination(result.pagination || null);
     } catch (err) {

@@ -2,7 +2,7 @@
   "name": "ballers-app",
   "version": "1.0.0",
   "private": true,
-  "homepage": ".",
+  "homepage": "/",
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
     "axios": "^1.6.8",

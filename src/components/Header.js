@@ -16,7 +16,7 @@ import { useToast } from '../context/ToastContext';
 const Header = () => {
   const { isAuthenticated, user, logout } = useAuth();
   const { totalItems, openCart } = useCart();
-  const { showSuccess } = useToast();
+  const { success: showSuccess } = useToast();
   const navigate = useNavigate();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

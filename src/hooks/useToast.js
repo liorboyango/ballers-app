@@ -3,6 +3,6 @@
  *
  * Usage:
  *   import { useToast } from '../hooks/useToast';
- *   const { showSuccess, showError } = useToast();
+ *   const { success, error } = useToast();
  */
 export { useToast } from '../context/ToastContext';

@@ -32,7 +32,7 @@ function ProductFormModal({ open, onClose, onCreated }) {
   const dialogRef = useRef(null);
   const firstFieldRef = useRef(null);
 
-  const { teams, loading: teamsLoading, error: teamsError } = useTeams({ limit: 100 });
+  const { teams, loading: teamsLoading, error: teamsError } = useTeams({ fetchAll: true });
 
   useEffect(() => {
     if (!open) return;
