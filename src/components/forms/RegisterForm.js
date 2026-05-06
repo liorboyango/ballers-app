@@ -10,7 +10,6 @@ import { useNavigate } from 'react-router-dom';
 import { registerSchema } from '../../utils/validation';
 import { FormInput } from './FormField';
 import { useAuth } from '../../hooks/useAuth';
-import api from '../../services/api';
 
 /**
  * @param {object} props
@@ -19,7 +18,7 @@ import api from '../../services/api';
  */
 export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { register: registerUser } = useAuth();
   const [serverError, setServerError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -39,30 +38,18 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
   const onSubmit = async (data) => {
     setServerError('');
     try {
-      const response = await api.post('/auth/register', {
-        name: data.name,
-        email: data.email,
-        password: data.password,
-      });
-
-      const { token, user } = response.data;
-      login(token, user);
+      const result = await registerUser(data.name, data.email, data.password);
 
       if (onSuccess) {
-        onSuccess(user);
+        onSuccess(result.user);
       } else {
         navigate('/');
       }
     } catch (err) {
-      const apiErrors = err.response?.data?.errors;
-      if (apiErrors && Array.isArray(apiErrors)) {
-        setServerError(apiErrors.map((e) => e.message).join('. '));
+      if (Array.isArray(err?.errors) && err.errors.length) {
+        setServerError(err.errors.map((e) => e.message).join('. '));
       } else {
-        setServerError(
-          err.response?.data?.error ||
-            err.response?.data?.message ||
-            'Registration failed. Please try again.'
-        );
+        setServerError(err?.message || 'Registration failed. Please try again.');
       }
     }
   };

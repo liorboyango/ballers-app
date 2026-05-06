@@ -10,7 +10,6 @@ import { useNavigate } from 'react-router-dom';
 import { loginSchema } from '../../utils/validation';
 import { FormInput } from './FormField';
 import { useAuth } from '../../hooks/useAuth';
-import api from '../../services/api';
 
 /**
  * @param {object} props
@@ -35,25 +34,15 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }) {
   const onSubmit = async (data) => {
     setServerError('');
     try {
-      const response = await api.post('/auth/login', {
-        email: data.email,
-        password: data.password,
-      });
-
-      const { token, user } = response.data;
-      login(token, user);
+      const result = await login(data.email, data.password);
 
       if (onSuccess) {
-        onSuccess(user);
+        onSuccess(result.user);
       } else {
         navigate('/');
       }
     } catch (err) {
-      const message =
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        'Login failed. Please check your credentials.';
-      setServerError(message);
+      setServerError(err?.message || 'Login failed. Please check your credentials.');
     }
   };
 

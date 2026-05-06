@@ -43,3 +43,34 @@ export const getProductBySlug = async (slug) => {
   const response = await apiClient.get(`/products/slug/${slug}`);
   return response.data;
 };
+
+/**
+ * Create a new product (admin only).
+ * @param {Object} payload
+ * @returns {Promise<{data: Product}>}
+ */
+export const createProduct = async (payload) => {
+  const response = await apiClient.post('/products', payload);
+  return response.data;
+};
+
+/**
+ * Update a product by ID (admin only).
+ * @param {string} id
+ * @param {Object} payload
+ * @returns {Promise<{data: Product}>}
+ */
+export const updateProduct = async (id, payload) => {
+  const response = await apiClient.put(`/products/${id}`, payload);
+  return response.data;
+};
+
+/**
+ * Delete a product by ID (admin only).
+ * @param {string} id
+ * @returns {Promise<{success: boolean}>}
+ */
+export const deleteProduct = async (id) => {
+  const response = await apiClient.delete(`/products/${id}`);
+  return response.data;
+};

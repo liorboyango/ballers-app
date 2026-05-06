@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
+import { getProductImage } from '../utils/imageUrl';
 
 /**
  * ProductCard component
@@ -21,9 +22,9 @@ const ProductCard = ({ product }) => {
 
   const {
     _id,
+    id,
     name,
     price,
-    images = [],
     team,
     kitType,
     isNew,
@@ -32,12 +33,9 @@ const ProductCard = ({ product }) => {
     inStock = true,
     slug,
   } = product;
+  const productId = _id || id;
 
-  const imageUrl = images[0]
-    ? images[0].startsWith('http')
-      ? images[0]
-      : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${images[0]}`
-    : '/placeholder-kit.png';
+  const imageUrl = getProductImage(product) || '/placeholder-kit.png';
 
   const teamName =
     typeof team === 'object' ? team?.name || team?.country || '' : '';
@@ -52,7 +50,7 @@ const ProductCard = ({ product }) => {
     setAdding(true);
     try {
       await addToCart({
-        productId: _id,
+        productId,
         quantity: 1,
         customization: { size: selectedSize },
       });
@@ -66,7 +64,7 @@ const ProductCard = ({ product }) => {
   };
 
   const handleCardClick = () => {
-    navigate(`/product/${_id}`);
+    navigate(`/product/${productId}`);
   };
 
   return (

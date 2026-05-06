@@ -9,6 +9,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import CheckoutForm from '../components/forms/CheckoutForm';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
+import { getProductImage } from '../utils/imageUrl';
 
 /** Format price as USD */
 const formatPrice = (amount) =>
@@ -16,10 +17,7 @@ const formatPrice = (amount) =>
 
 /** Single order summary line item */
 function OrderItem({ item }) {
-  const imageUrl =
-    item.product?.images?.[0]
-      ? `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/uploads/${item.product.images[0]}`
-      : null;
+  const imageUrl = getProductImage(item.product);
 
   return (
     <div className="flex gap-3 py-3 border-b border-[#2A3550] last:border-0">

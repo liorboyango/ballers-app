@@ -1,74 +1,200 @@
 /**
  * AdminOverview — Dashboard Overview screen.
- * Matches admin_panel_overview_screen.png: KPI cards, sales chart, recent orders.
+ * KPIs, sales chart, and recent orders pulled live from the backend.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import AdminLayout from './AdminLayout';
+import { useOrders } from '../../hooks/useOrders';
+import { useProducts } from '../../hooks/useProducts';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
-const KPIS = [
-  {
-    label: 'Total Sales (MTD)',
-    value: '$142,590',
-    delta: '↗ +12.5% vs last month',
-    deltaTone: 'text-brand',
-    icon: '$',
-  },
-  {
-    label: 'Active Orders',
-    value: '348',
-    delta: '⏱ 42 pending fulfillment',
-    deltaTone: 'text-ink-muted',
-    icon: '🚚',
-  },
-  {
-    label: 'Low Stock Alerts',
-    value: '12 Items',
-    delta: '→ Requires immediate restock',
-    deltaTone: 'text-accent-danger',
-    valueTone: 'text-accent-danger',
-    icon: '⚠',
-  },
-];
+const LOW_STOCK_THRESHOLD = 10;
+const ACTIVE_STATUSES = new Set(['pending', 'processing', 'paid', 'confirmed']);
 
-const RECENT_ORDERS = [
-  { id: '#ORD-9082', customer: 'Marcus Johnson', date: 'Today, 10:42 AM', status: 'Processing', amount: 245.00 },
-  { id: '#ORD-9081', customer: 'Sofia Rodriguez', date: 'Today, 9:15 AM', status: 'Shipped', amount: 189.50 },
-  { id: '#ORD-9080', customer: 'James Patel', date: 'Yesterday, 6:30 PM', status: 'Delivered', amount: 320.00 },
-  { id: '#ORD-9079', customer: 'Emma Chen', date: 'Yesterday, 4:12 PM', status: 'Processing', amount: 95.00 },
-  { id: '#ORD-9078', customer: 'David Kim', date: 'May 4, 8:55 AM', status: 'Shipped', amount: 410.75 },
-];
+const inferStock = (p) => {
+  if (typeof p.stock === 'number') return p.stock;
+  if (typeof p.stockQuantity === 'number') return p.stockQuantity;
+  if (Array.isArray(p.sizes)) {
+    return p.sizes.reduce((sum, s) => sum + (s.stock || s.quantity || 0), 0);
+  }
+  return p.inStock === false ? 0 : 100;
+};
+
+const orderTotal = (o) =>
+  typeof o.totalAmount === 'number'
+    ? o.totalAmount
+    : typeof o.total === 'number'
+    ? o.total
+    : 0;
+
+const orderDate = (o) => {
+  const raw = o.createdAt || o.created_at || o.date || o.placedAt;
+  return raw ? new Date(raw) : null;
+};
+
+const orderCustomer = (o) => {
+  const a = o.shippingAddress;
+  if (a?.firstName || a?.lastName) {
+    return `${a.firstName || ''} ${a.lastName || ''}`.trim();
+  }
+  return o.user?.name || a?.email || o.email || '—';
+};
+
+const orderStatusLabel = (s) => {
+  if (!s) return 'Processing';
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
 
 const STATUS_TONE = {
   Processing: 'bg-brand-50 text-brand',
+  Pending: 'bg-brand-50 text-brand',
+  Paid: 'bg-brand-50 text-brand',
+  Confirmed: 'bg-brand-50 text-brand',
   Shipped: 'bg-blue-50 text-blue-700',
   Delivered: 'bg-surface-sunken text-ink-soft',
+  Cancelled: 'bg-red-50 text-accent-danger',
 };
 
-function MiniChart() {
-  // Simple inline SVG line chart (decorative)
-  const points = [
-    [0, 70], [50, 65], [110, 78], [170, 50], [230, 60], [290, 40],
-    [350, 45], [410, 32], [470, 36], [530, 22], [590, 28], [650, 25],
-  ];
+function MiniChart({ buckets }) {
+  const max = Math.max(1, ...buckets.map((b) => b.value));
+  const width = 660;
+  const height = 110;
+  const stepX = buckets.length > 1 ? width / (buckets.length - 1) : 0;
+
+  const points = buckets.map((b, i) => [
+    Math.round(i * stepX),
+    Math.round(height - (b.value / max) * (height - 10) - 5),
+  ]);
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ');
-  const area = `${path} L 650 100 L 0 100 Z`;
+  const area = points.length
+    ? `${path} L ${points[points.length - 1][0]} ${height} L 0 ${height} Z`
+    : '';
+
   return (
-    <svg viewBox="0 0 660 110" className="w-full h-56" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-56" preserveAspectRatio="none">
       <defs>
         <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor="#1F6E3A" stopOpacity="0.25" />
           <stop offset="100%" stopColor="#1F6E3A" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={area} fill="url(#g1)" />
-      <path d={path} fill="none" stroke="#1F6E3A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="530" cy="22" r="4" fill="#1F6E3A" />
+      {area && <path d={area} fill="url(#g1)" />}
+      {path && (
+        <path
+          d={path}
+          fill="none"
+          stroke="#1F6E3A"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      {points.length > 0 && (
+        <circle
+          cx={points[points.length - 1][0]}
+          cy={points[points.length - 1][1]}
+          r="4"
+          fill="#1F6E3A"
+        />
+      )}
     </svg>
   );
 }
 
 function AdminOverview() {
   const [chartView, setChartView] = useState('Revenue');
+
+  const { orders, loading: ordersLoading, error: ordersError } = useOrders({
+    page: 1,
+    limit: 100,
+    sort: '-createdAt',
+  });
+  const { products, loading: productsLoading } = useProducts({ page: 1, limit: 100 });
+
+  const lowStockCount = useMemo(
+    () => products.filter((p) => inferStock(p) <= LOW_STOCK_THRESHOLD).length,
+    [products]
+  );
+
+  const { mtdSales, activeOrders, recentOrders, chartBuckets, chartRangeLabel } = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    let mtd = 0;
+    let active = 0;
+    for (const o of orders) {
+      const d = orderDate(o);
+      if (d && d >= monthStart) mtd += orderTotal(o);
+      const s = (o.status || '').toLowerCase();
+      if (ACTIVE_STATUSES.has(s)) active += 1;
+    }
+
+    const sorted = [...orders].sort((a, b) => {
+      const da = orderDate(a)?.getTime() || 0;
+      const db = orderDate(b)?.getTime() || 0;
+      return db - da;
+    });
+
+    const recents = sorted.slice(0, 5);
+
+    const days = 30;
+    const buckets = Array.from({ length: days }, (_, i) => {
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - (days - 1 - i));
+      return { date: d, value: 0 };
+    });
+
+    for (const o of orders) {
+      const d = orderDate(o);
+      if (!d) continue;
+      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      const idx = buckets.findIndex((b) => b.date.getTime() === dayStart);
+      if (idx >= 0) {
+        buckets[idx].value += chartView === 'Units' ? 1 : orderTotal(o);
+      }
+    }
+
+    const fmtShort = (d) =>
+      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const rangeLabel =
+      buckets.length > 0
+        ? `${fmtShort(buckets[0].date)} – ${fmtShort(buckets[buckets.length - 1].date)}`
+        : '';
+
+    return {
+      mtdSales: mtd,
+      activeOrders: active,
+      recentOrders: recents,
+      chartBuckets: buckets,
+      chartRangeLabel: rangeLabel,
+    };
+  }, [orders, chartView]);
+
+  const kpis = [
+    {
+      label: 'Total Sales (MTD)',
+      value: ordersLoading ? '—' : formatCurrency(mtdSales),
+      delta: ordersLoading ? ' ' : `${orders.length} order${orders.length === 1 ? '' : 's'} in window`,
+      deltaTone: 'text-ink-muted',
+      icon: '$',
+    },
+    {
+      label: 'Active Orders',
+      value: ordersLoading ? '—' : String(activeOrders),
+      delta: ordersLoading ? ' ' : 'Pending or processing',
+      deltaTone: 'text-ink-muted',
+      icon: '🚚',
+    },
+    {
+      label: 'Low Stock Alerts',
+      value: productsLoading ? '—' : `${lowStockCount} Item${lowStockCount === 1 ? '' : 's'}`,
+      delta: productsLoading ? ' ' : '→ Requires immediate restock',
+      deltaTone: 'text-accent-danger',
+      valueTone: 'text-accent-danger',
+      icon: '⚠',
+    },
+  ];
 
   return (
     <AdminLayout
@@ -85,7 +211,7 @@ function AdminOverview() {
     >
       {/* KPI cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {KPIS.map((k) => (
+        {kpis.map((k) => (
           <div key={k.label} className="card p-5">
             <div className="flex items-start justify-between">
               <span className="text-sm text-ink-muted">{k.label}</span>
@@ -115,13 +241,9 @@ function AdminOverview() {
             ))}
           </div>
         </div>
-        <MiniChart />
+        <MiniChart buckets={chartBuckets} />
         <div className="flex justify-between text-xs text-ink-muted mt-2 px-2">
-          <span>Oct 1</span>
-          <span>Oct 8</span>
-          <span>Oct 15</span>
-          <span>Oct 22</span>
-          <span>Oct 30</span>
+          <span>{chartRangeLabel}</span>
         </div>
       </div>
 
@@ -131,6 +253,11 @@ function AdminOverview() {
           <h2 className="font-bold text-ink">Recent Orders</h2>
           <button className="text-sm text-brand font-semibold hover:underline">View All</button>
         </div>
+        {ordersError && (
+          <div className="px-3 py-2 mb-3 bg-red-50 text-accent-danger text-xs rounded-md">
+            {ordersError}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -143,19 +270,50 @@ function AdminOverview() {
               </tr>
             </thead>
             <tbody>
-              {RECENT_ORDERS.map((o) => (
-                <tr key={o.id} className="border-b border-line last:border-0">
-                  <td className="py-3 pr-4 font-medium text-ink">{o.id}</td>
-                  <td className="py-3 pr-4 text-ink-soft">{o.customer}</td>
-                  <td className="py-3 pr-4 text-ink-soft">{o.date}</td>
-                  <td className="py-3 pr-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${STATUS_TONE[o.status] || 'bg-surface-sunken text-ink-soft'}`}>
-                      {o.status}
-                    </span>
+              {ordersLoading && recentOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-ink-muted text-sm">
+                    Loading orders…
                   </td>
-                  <td className="py-3 pl-4 text-right font-semibold text-ink">${o.amount.toFixed(2)}</td>
                 </tr>
-              ))}
+              ) : recentOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-ink-muted text-sm">
+                    No orders yet.
+                  </td>
+                </tr>
+              ) : (
+                recentOrders.map((o) => {
+                  const id = o._id || o.id;
+                  const date = orderDate(o);
+                  const statusLabel = orderStatusLabel(o.status);
+                  return (
+                    <tr key={id} className="border-b border-line last:border-0">
+                      <td className="py-3 pr-4 font-medium text-ink font-mono text-xs">
+                        #{(id || '').toString().slice(-8).toUpperCase()}
+                      </td>
+                      <td className="py-3 pr-4 text-ink-soft">{orderCustomer(o)}</td>
+                      <td className="py-3 pr-4 text-ink-soft">
+                        {date
+                          ? formatDate(date, { month: 'short', day: 'numeric', year: 'numeric' })
+                          : '—'}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${
+                            STATUS_TONE[statusLabel] || 'bg-surface-sunken text-ink-soft'
+                          }`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </td>
+                      <td className="py-3 pl-4 text-right font-semibold text-ink">
+                        {formatCurrency(orderTotal(o))}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

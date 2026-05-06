@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCart } from '../hooks/useCart';
+import { getProductImage } from '../utils/imageUrl';
 
 /**
  * CartItem component
@@ -16,11 +17,7 @@ const CartItem = ({ item, compact = false }) => {
   const { _id, product, quantity, price, customization } = item;
 
   const productName = product?.name || 'Unknown Product';
-  const productImage = product?.images?.[0]
-    ? product.images[0].startsWith('http')
-      ? product.images[0]
-      : `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${product.images[0]}`
-    : '/placeholder-kit.png';
+  const productImage = getProductImage(product) || '/placeholder-kit.png';
 
   const teamName =
     product?.team && typeof product.team === 'object'

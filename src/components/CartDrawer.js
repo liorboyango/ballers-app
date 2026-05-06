@@ -13,6 +13,7 @@ import React, { useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { getProductImage as resolveProductImage } from '../utils/imageUrl';
 
 const CartDrawer = () => {
   const { items, totalItems, totalPrice, isCartOpen, closeCart, removeFromCart, updateCartItem, isLoading } = useCart();
@@ -61,16 +62,7 @@ const CartDrawer = () => {
     await updateCartItem(itemId, { quantity: newQty });
   };
 
-  const getProductImage = (item) => {
-    const images = item.product?.images;
-    if (images && images.length > 0) {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      const img = images[0];
-      if (img.startsWith('http')) return img;
-      return `${apiUrl}${img}`;
-    }
-    return null;
-  };
+  const getProductImage = (item) => resolveProductImage(item?.product);
 
   return (
     <>
