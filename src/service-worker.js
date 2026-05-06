@@ -9,7 +9,7 @@
  * - Google Fonts: StaleWhileRevalidate
  */
 
-/* eslint-disable no-restricted-globals */
+/* eslint-disable no-restricted-globals, no-undef */
 
 import { clientsClaim } from 'workbox-core';
 import { ExpirationPlugin } from 'workbox-expiration';
