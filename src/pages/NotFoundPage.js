@@ -1,35 +1,32 @@
 /**
- * 404 Not Found Page
- * Displayed when a route doesn't match any defined routes.
+ * NotFoundPage — 404 error page.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-function NotFoundPage() {
+const NotFoundPage = () => {
   return (
-    <div className="page-enter min-h-[80vh] flex items-center justify-center px-4">
-      <div className="text-center max-w-md">
-        {/* 404 display */}
-        <div className="font-bebas text-[120px] leading-none text-gold/20 select-none" aria-hidden="true">
+    <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center px-4">
+      <div className="text-center">
+        <h1
+          className="text-9xl font-black text-[#E8C547] mb-4"
+          style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+        >
           404
-        </div>
-
-        <h1 className="font-bebas text-4xl text-white mt-4 mb-4">PAGE NOT FOUND</h1>
-        <p className="text-ballers-muted mb-8">
-          Looks like this page went offside. Let's get you back in the game.
+        </h1>
+        <h2 className="text-2xl font-bold text-white mb-3">Page Not Found</h2>
+        <p className="text-[#A8B2C1] mb-8 max-w-md">
+          The page you're looking for doesn't exist or has been moved.
         </p>
-
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/" className="btn-primary">
-            Go Home
-          </Link>
-          <Link to="/products" className="btn-secondary">
-            Shop Kits
-          </Link>
-        </div>
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 bg-[#E8C547] text-[#1A1A2E] font-bold uppercase tracking-wider px-8 py-3 rounded-lg hover:bg-[#D4A800] transition-colors"
+        >
+          Back to Home
+        </Link>
       </div>
     </div>
   );
-}
+};
 
 export default NotFoundPage;

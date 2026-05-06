@@ -1,183 +1,96 @@
 /**
- * Header Component
- * Persistent navigation header with logo, nav links, cart icon, and user menu.
- * Responsive: hamburger menu on mobile, full nav on desktop.
- * Sticky with blur-backdrop on scroll.
+ * Header — persistent navigation bar.
+ *
+ * Features:
+ *  - Sticky with blur backdrop on scroll
+ *  - Logo linking to home
+ *  - Desktop nav links
+ *  - Cart icon with item count badge (animated)
+ *  - User menu (login/logout)
+ *  - Mobile hamburger menu
+ *  - Accessible keyboard navigation
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { NAV_LINKS } from '../utils/constants';
+import { useToast } from '../context/ToastContext';
 
-/**
- * Cart icon with item count badge.
- */
-function CartIcon({ count, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className="relative p-2 text-white hover:text-gold transition-colors duration-200"
-      aria-label={`Shopping cart with ${count} items`}
-    >
-      {/* Cart SVG */}
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        className="h-6 w-6"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-        />
-      </svg>
-      {/* Badge */}
-      {count > 0 && (
-        <span
-          className="absolute -top-1 -right-1 bg-gold text-navy text-xs font-bold
-                     rounded-full h-5 w-5 flex items-center justify-center
-                     animate-pulse-gold"
-          aria-hidden="true"
-        >
-          {count > 99 ? '99+' : count}
-        </span>
-      )}
-    </button>
-  );
-}
-
-/**
- * User menu icon.
- */
-function UserIcon({ isAuthenticated, onLogout }) {
-  const [isOpen, setIsOpen] = useState(false);
+const Header = () => {
+  const { isAuthenticated, user, logout } = useAuth();
+  const { totalItems, openCart } = useCart();
+  const { showSuccess } = useToast();
   const navigate = useNavigate();
 
-  return (
-    <div className="relative">
-      <button
-        onClick={() => {
-          if (!isAuthenticated) {
-            navigate('/login');
-          } else {
-            setIsOpen(!isOpen);
-          }
-        }}
-        className="p-2 text-white hover:text-gold transition-colors duration-200"
-        aria-label={isAuthenticated ? 'User menu' : 'Login'}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-6 w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-          />
-        </svg>
-      </button>
-
-      {/* Dropdown menu */}
-      {isAuthenticated && isOpen && (
-        <div
-          className="absolute right-0 mt-2 w-48 bg-navy-surface border border-ballers-border
-                     rounded-lg shadow-xl z-50 animate-fade-in"
-        >
-          <Link
-            to="/account"
-            className="block px-4 py-3 text-sm text-white hover:bg-navy-deep
-                       hover:text-gold transition-colors duration-150"
-            onClick={() => setIsOpen(false)}
-          >
-            My Account
-          </Link>
-          <Link
-            to="/orders"
-            className="block px-4 py-3 text-sm text-white hover:bg-navy-deep
-                       hover:text-gold transition-colors duration-150"
-            onClick={() => setIsOpen(false)}
-          >
-            My Orders
-          </Link>
-          <hr className="border-ballers-border" />
-          <button
-            onClick={() => {
-              onLogout();
-              setIsOpen(false);
-            }}
-            className="block w-full text-left px-4 py-3 text-sm text-ballers-red
-                       hover:bg-navy-deep transition-colors duration-150"
-          >
-            Logout
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Main Header component.
- */
-function Header() {
-  const { isAuthenticated, logout } = useAuth();
-  const { itemCount, toggleDrawer } = useCart();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const navigate = useNavigate();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [prevTotalItems, setPrevTotalItems] = useState(totalItems);
+  const [cartBadgeAnimate, setCartBadgeAnimate] = useState(false);
+  const userMenuRef = useRef(null);
 
-  // Track scroll position for sticky blur effect
+  // Scroll detection for sticky blur effect
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 10);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mobile menu on route change
-  const handleNavClick = () => {
+  // Animate cart badge when item count increases
+  useEffect(() => {
+    if (totalItems > prevTotalItems) {
+      setCartBadgeAnimate(true);
+      const timer = setTimeout(() => setCartBadgeAnimate(false), 600);
+      return () => clearTimeout(timer);
+    }
+    setPrevTotalItems(totalItems);
+  }, [totalItems, prevTotalItems]);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    setIsUserMenuOpen(false);
     setIsMobileMenuOpen(false);
+    showSuccess('You have been logged out.');
+    navigate('/');
   };
 
-  const handleCartClick = () => {
-    navigate('/cart');
-  };
+  const navLinks = [
+    { to: '/teams', label: 'Teams' },
+    { to: '/products', label: 'Shop' },
+  ];
 
   return (
     <header
-      className={`sticky top-0 z-40 transition-all duration-300 ${
-        isScrolled
-          ? 'bg-navy/95 backdrop-blur-md shadow-lg border-b border-ballers-border'
-          : 'bg-navy'
-      }`}
-      role="banner"
+      className={`
+        sticky top-0 z-40 transition-all duration-300
+        ${
+          isScrolled
+            ? 'bg-[#1A1A2E]/95 backdrop-blur-md shadow-lg shadow-black/20'
+            : 'bg-[#1A1A2E]'
+        }
+      `}
     >
-      <div className="container-ballers">
-        <div className="flex items-center justify-between h-16 lg:h-20">
-          {/* Mobile: Hamburger */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          {/* Mobile: hamburger */}
           <button
-            className="lg:hidden p-2 text-white hover:text-gold transition-colors"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="lg:hidden text-[#A8B2C1] hover:text-white p-2 -ml-2"
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
             aria-expanded={isMobileMenuOpen}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {isMobileMenuOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               ) : (
@@ -189,90 +102,159 @@ function Header() {
           {/* Logo */}
           <Link
             to="/"
-            className="font-bebas text-3xl lg:text-4xl text-gold tracking-wider
-                       hover:text-gold-hover transition-colors duration-200"
+            className="text-2xl font-black tracking-widest text-[#E8C547] hover:text-[#D4A800] transition-colors"
+            style={{ fontFamily: "'Bebas Neue', sans-serif" }}
             aria-label="Ballers - Home"
           >
             BALLERS
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-8" role="navigation" aria-label="Main navigation">
-            {NAV_LINKS.map((link) => (
+          {/* Desktop nav */}
+          <nav className="hidden lg:flex items-center gap-8" aria-label="Main navigation">
+            {navLinks.map(({ to, label }) => (
               <NavLink
-                key={link.path}
-                to={link.path}
+                key={to}
+                to={to}
                 className={({ isActive }) =>
-                  `text-sm font-medium uppercase tracking-widest transition-colors duration-200 ${
-                    isActive ? 'text-gold' : 'text-white hover:text-gold'
+                  `text-sm font-medium uppercase tracking-widest transition-colors ${
+                    isActive
+                      ? 'text-[#E8C547]'
+                      : 'text-[#A8B2C1] hover:text-white'
                   }`
                 }
               >
-                {link.label}
+                {label}
               </NavLink>
             ))}
           </nav>
 
-          {/* Right Actions */}
-          <div className="flex items-center gap-1">
-            <CartIcon count={itemCount} onClick={handleCartClick} />
-            <UserIcon isAuthenticated={isAuthenticated} onLogout={logout} />
+          {/* Right actions */}
+          <div className="flex items-center gap-3">
+            {/* Cart button */}
+            <button
+              onClick={openCart}
+              className="relative p-2 text-[#A8B2C1] hover:text-white transition-colors"
+              aria-label={`Shopping cart, ${totalItems} item${totalItems !== 1 ? 's' : ''}`}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              {totalItems > 0 && (
+                <span
+                  className={`
+                    absolute -top-1 -right-1 min-w-[20px] h-5 px-1
+                    bg-[#E8C547] text-[#1A1A2E] text-xs font-bold
+                    rounded-full flex items-center justify-center
+                    transition-transform
+                    ${cartBadgeAnimate ? 'scale-125' : 'scale-100'}
+                  `}
+                  aria-hidden="true"
+                >
+                  {totalItems > 99 ? '99+' : totalItems}
+                </span>
+              )}
+            </button>
+
+            {/* User menu */}
+            {isAuthenticated ? (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                  className="flex items-center gap-2 p-2 text-[#A8B2C1] hover:text-white transition-colors"
+                  aria-label="User menu"
+                  aria-expanded={isUserMenuOpen}
+                  aria-haspopup="true"
+                >
+                  <div className="w-8 h-8 rounded-full bg-[#0F3460] border border-[#2A3550] flex items-center justify-center text-sm font-bold text-[#E8C547]">
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                </button>
+
+                {isUserMenuOpen && (
+                  <div
+                    className="absolute right-0 mt-2 w-48 bg-[#16213E] border border-[#2A3550] rounded-xl shadow-2xl py-1 z-50"
+                    role="menu"
+                  >
+                    <div className="px-4 py-2 border-b border-[#2A3550]">
+                      <p className="text-sm font-medium text-white truncate">{user?.name}</p>
+                      <p className="text-xs text-[#A8B2C1] truncate">{user?.email}</p>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-sm text-[#A8B2C1] hover:text-white hover:bg-[#0F3460] transition-colors"
+                      role="menuitem"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                className="hidden sm:flex items-center gap-1 text-sm font-medium text-[#A8B2C1] hover:text-white transition-colors uppercase tracking-wider"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Login
+              </Link>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Mobile Navigation Menu */}
+      {/* Mobile menu */}
       {isMobileMenuOpen && (
         <div
-          className="lg:hidden bg-navy-surface border-t border-ballers-border animate-fade-in"
+          className="lg:hidden bg-[#16213E] border-t border-[#2A3550] px-4 py-4"
           role="navigation"
           aria-label="Mobile navigation"
         >
-          <div className="container-ballers py-4 flex flex-col gap-1">
-            {NAV_LINKS.map((link) => (
+          <nav className="flex flex-col gap-1">
+            {navLinks.map(({ to, label }) => (
               <NavLink
-                key={link.path}
-                to={link.path}
-                onClick={handleNavClick}
+                key={to}
+                to={to}
+                onClick={() => setIsMobileMenuOpen(false)}
                 className={({ isActive }) =>
-                  `block px-4 py-3 text-sm font-medium uppercase tracking-widest
-                   rounded-lg transition-colors duration-200 ${
+                  `px-3 py-2 rounded-lg text-sm font-medium uppercase tracking-widest transition-colors ${
                     isActive
-                      ? 'text-gold bg-navy-deep'
-                      : 'text-white hover:text-gold hover:bg-navy-deep'
+                      ? 'bg-[#0F3460] text-[#E8C547]'
+                      : 'text-[#A8B2C1] hover:text-white hover:bg-[#0F3460]'
                   }`
                 }
               >
-                {link.label}
+                {label}
               </NavLink>
             ))}
-            <hr className="border-ballers-border my-2" />
-            {isAuthenticated ? (
-              <button
-                onClick={() => {
-                  logout();
-                  handleNavClick();
-                }}
-                className="block px-4 py-3 text-sm font-medium uppercase tracking-widest
-                           text-ballers-red hover:bg-navy-deep rounded-lg transition-colors"
-              >
-                Logout
-              </button>
-            ) : (
+            {!isAuthenticated && (
               <NavLink
                 to="/login"
-                onClick={handleNavClick}
-                className="block px-4 py-3 text-sm font-medium uppercase tracking-widest
-                           text-white hover:text-gold hover:bg-navy-deep rounded-lg transition-colors"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="px-3 py-2 rounded-lg text-sm font-medium uppercase tracking-widest text-[#A8B2C1] hover:text-white hover:bg-[#0F3460] transition-colors"
               >
                 Login
               </NavLink>
             )}
-          </div>
+            {isAuthenticated && (
+              <button
+                onClick={handleLogout}
+                className="text-left px-3 py-2 rounded-lg text-sm font-medium uppercase tracking-widest text-[#A8B2C1] hover:text-white hover:bg-[#0F3460] transition-colors"
+              >
+                Sign Out
+              </button>
+            )}
+          </nav>
         </div>
       )}
     </header>
   );
-}
+};
 
 export default Header;

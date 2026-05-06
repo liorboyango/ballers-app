@@ -1,89 +1,105 @@
 /**
- * Client-side validation utilities using Zod schemas.
- * Used for form validation across the application.
+ * Client-side validation schemas using Zod.
+ * Used with React Hook Form for form validation.
  */
 import { z } from 'zod';
 
-// ─── Customization Schema ─────────────────────────────────────────────────────
-export const customizationSchema = z.object({
-  size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL'], {
-    errorMap: () => ({ message: 'Please select a valid size' }),
-  }),
-  number: z
-    .string()
-    .optional()
-    .refine(
-      (val) => !val || (parseInt(val, 10) >= 1 && parseInt(val, 10) <= 99),
-      { message: 'Jersey number must be between 1 and 99' }
-    ),
-  name: z
-    .string()
-    .max(20, 'Name must be 20 characters or less')
-    .regex(/^[a-zA-Z0-9\s'-]*$/, 'Name contains invalid characters')
-    .optional(),
-});
-
-// ─── Auth Schemas ─────────────────────────────────────────────────────────────
+/** Login form schema */
 export const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Please enter a valid email address'),
+  password: z
+    .string()
+    .min(1, 'Password is required')
+    .min(6, 'Password must be at least 6 characters'),
 });
 
+/** Registration form schema */
 export const registerSchema = z
   .object({
     name: z
       .string()
+      .min(1, 'Name is required')
       .min(2, 'Name must be at least 2 characters')
-      .max(50, 'Name must be 50 characters or less'),
-    email: z.string().email('Please enter a valid email address'),
+      .max(50, 'Name must be less than 50 characters'),
+    email: z
+      .string()
+      .min(1, 'Email is required')
+      .email('Please enter a valid email address'),
     password: z
       .string()
+      .min(1, 'Password is required')
       .min(6, 'Password must be at least 6 characters')
-      .max(100, 'Password is too long'),
-    confirmPassword: z.string(),
+      .max(100, 'Password must be less than 100 characters'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
+    message: 'Passwords do not match',
     path: ['confirmPassword'],
   });
 
-// ─── Checkout Schema ──────────────────────────────────────────────────────────
-export const checkoutSchema = z.object({
+/** Checkout shipping address schema */
+export const shippingSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Please enter a valid email address'),
-  address: z.string().min(5, 'Please enter a valid address'),
+  email: z.string().min(1, 'Email is required').email('Invalid email address'),
+  address: z.string().min(1, 'Address is required'),
   city: z.string().min(1, 'City is required'),
-  zip: z.string().min(3, 'Please enter a valid ZIP/postal code'),
+  zip: z.string().min(1, 'ZIP code is required'),
   country: z.string().min(1, 'Country is required'),
   phone: z.string().optional(),
-  paymentMethod: z.enum(['card', 'paypal']),
-  cardNumber: z.string().optional(),
-  cardHolder: z.string().optional(),
-  expiryMonth: z.string().optional(),
-  expiryYear: z.string().optional(),
-  cvv: z.string().optional(),
 });
 
-/**
- * Validate data against a Zod schema
- * @param {z.ZodSchema} schema - Zod schema to validate against
- * @param {Object} data - Data to validate
- * @returns {{ success: boolean, errors: Object }}
- */
-export const validate = (schema, data) => {
-  const result = schema.safeParse(data);
-  if (result.success) {
-    return { success: true, errors: {}, data: result.data };
-  }
+/** Payment info schema */
+export const paymentSchema = z.object({
+  method: z.enum(['card', 'paypal']),
+  cardNumber: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || /^\d{16}$/.test(val.replace(/\s/g, '')),
+      'Card number must be 16 digits'
+    ),
+  cardHolder: z.string().optional(),
+  expiryMonth: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || /^(0[1-9]|1[0-2])$/.test(val),
+      'Invalid expiry month (MM)'
+    ),
+  expiryYear: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || /^\d{4}$/.test(val),
+      'Invalid expiry year (YYYY)'
+    ),
+  cvv: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || /^\d{3,4}$/.test(val),
+      'CVV must be 3 or 4 digits'
+    ),
+});
 
-  const errors = {};
-  result.error.errors.forEach((err) => {
-    const path = err.path.join('.');
-    if (!errors[path]) {
-      errors[path] = err.message;
-    }
-  });
-
-  return { success: false, errors, data: null };
-};
+/** Jersey customization schema */
+export const customizationSchema = z.object({
+  size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL'], {
+    errorMap: () => ({ message: 'Please select a size' }),
+  }),
+  number: z
+    .union([z.string(), z.number()])
+    .optional()
+    .refine(
+      (val) => !val || (Number(val) >= 1 && Number(val) <= 99),
+      'Jersey number must be between 1 and 99'
+    ),
+  name: z
+    .string()
+    .max(20, 'Name must be 20 characters or less')
+    .optional(),
+});
