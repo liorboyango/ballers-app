@@ -1,343 +1,266 @@
 /**
- * Checkout Page
- * Multi-section checkout form: contact info, shipping, payment.
- * Includes order summary sidebar.
+ * CheckoutPage - Full checkout experience.
+ * Left column: CheckoutForm (contact, shipping, payment).
+ * Right column: Order summary with cart items.
+ * Handles redirect to login if user is not authenticated.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useCart } from '../context/CartContext';
-import { checkoutSchema, formatCardNumber, formatExpiryDate } from '../utils/validation';
+import CheckoutForm from '../components/forms/CheckoutForm';
+import { useCart } from '../hooks/useCart';
+import { useAuth } from '../hooks/useAuth';
 
-/**
- * Form field component with error display.
- */
-function FormField({ label, error, children, required }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-ballers-muted mb-1.5">
-        {label}{required && <span className="text-ballers-red ml-1" aria-hidden="true">*</span>}
-      </label>
-      {children}
-      {error && (
-        <p className="text-ballers-red text-xs mt-1" role="alert">{error}</p>
-      )}
-    </div>
-  );
-}
+/** Format price as USD */
+const formatPrice = (amount) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
-/**
- * Order summary sidebar for checkout.
- */
-function CheckoutOrderSummary({ items, subtotal }) {
-  const shipping = 0;
-  const total = subtotal + shipping;
+/** Single order summary line item */
+function OrderItem({ item }) {
+  const imageUrl =
+    item.product?.images?.[0]
+      ? `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/uploads/${item.product.images[0]}`
+      : null;
 
   return (
-    <div className="bg-navy-surface border border-ballers-border rounded-xl p-6">
-      <h2 className="font-bebas text-xl text-white tracking-wider mb-6">ORDER SUMMARY</h2>
-
-      {/* Items */}
-      <div className="space-y-4 mb-6">
-        {items.map((item) => (
-          <div key={item.cartKey} className="flex gap-3">
-            <div className="w-12 h-14 bg-navy-deep rounded flex-shrink-0 flex items-center justify-center">
-              {item.image ? (
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover rounded" />
-              ) : (
-                <span className="text-xl" aria-hidden="true">👕</span>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-medium leading-tight truncate">{item.name}</p>
-              <p className="text-ballers-muted text-xs">Size: {item.size} × {item.quantity}</p>
-              {item.customization?.playerName && (
-                <p className="text-ballers-muted text-xs">{item.customization.playerName}</p>
-              )}
-            </div>
-            <p className="text-gold text-sm font-bold flex-shrink-0">
-              ${(item.price * item.quantity).toFixed(2)}
-            </p>
+    <div className="flex gap-3 py-3 border-b border-[#2A3550] last:border-0">
+      {/* Product image */}
+      <div className="w-16 h-16 rounded-lg bg-[#1A1A2E] border border-[#2A3550] flex-shrink-0 overflow-hidden">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={item.product?.name || 'Kit'}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <svg className="w-6 h-6 text-[#2A3550]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
           </div>
-        ))}
+        )}
       </div>
 
-      {/* Totals */}
-      <div className="border-t border-ballers-border pt-4 space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-ballers-muted">Subtotal</span>
-          <span className="text-white">${subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-ballers-muted">Shipping</span>
-          <span className="text-ballers-success">Free</span>
-        </div>
-        <div className="flex justify-between pt-2 border-t border-ballers-border">
-          <span className="text-white font-bold uppercase tracking-wider">Total</span>
-          <span className="text-gold font-bold text-lg">${total.toFixed(2)}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Checkout Page - main component.
- */
-function CheckoutPage() {
-  const navigate = useNavigate();
-  const { items, subtotal, clearCart } = useCart();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(checkoutSchema),
-  });
-
-  // Redirect to cart if empty
-  if (items.length === 0 && !orderSuccess) {
-    return (
-      <div className="page-enter min-h-screen flex items-center justify-center">
-        <div className="text-center px-4">
-          <h1 className="font-bebas text-4xl text-white mb-4">YOUR CART IS EMPTY</h1>
-          <Link to="/products" className="btn-primary">Shop Now</Link>
-        </div>
-      </div>
-    );
-  }
-
-  // Order success state
-  if (orderSuccess) {
-    return (
-      <div className="page-enter min-h-screen flex items-center justify-center">
-        <div className="text-center px-4 max-w-md">
-          <div className="text-8xl mb-6" aria-hidden="true">🎉</div>
-          <h1 className="font-bebas text-4xl text-white mb-4">ORDER PLACED!</h1>
-          <p className="text-ballers-muted mb-8">
-            Thank you for your order. You'll receive a confirmation email shortly.
+      {/* Details */}
+      <div className="flex-1 min-w-0">
+        <p className="text-white text-sm font-medium truncate">
+          {item.product?.name || 'Kit'}
+        </p>
+        {item.customization && (
+          <p className="text-[#A8B2C1] text-xs mt-0.5">
+            {[item.customization.size, item.customization.number && `#${item.customization.number}`, item.customization.name]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
-          <Link to="/" className="btn-primary text-lg px-8 py-4">
-            Continue Shopping
-          </Link>
+        )}
+        <p className="text-[#A8B2C1] text-xs mt-0.5">Qty: {item.quantity}</p>
+      </div>
+
+      {/* Price */}
+      <p className="text-[#E8C547] text-sm font-bold flex-shrink-0">
+        {formatPrice((item.price || item.product?.price || 0) * item.quantity)}
+      </p>
+    </div>
+  );
+}
+
+/** Order success confirmation panel */
+function OrderSuccess({ order }) {
+  return (
+    <div className="flex flex-col items-center gap-6 py-12 text-center">
+      <div className="w-20 h-20 rounded-full bg-[#27AE60]/20 border-2 border-[#27AE60] flex items-center justify-center">
+        <svg className="w-10 h-10 text-[#27AE60]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <div>
+        <h2 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+          Order Placed!
+        </h2>
+        <p className="text-[#A8B2C1] text-sm">
+          Thank you for your order. We'll send a confirmation to your email.
+        </p>
+        {order?.id && (
+          <p className="text-[#E8C547] text-xs mt-2 font-mono">
+            Order #{order.id}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+        <Link
+          to="/"
+          className="flex-1 py-3 px-6 bg-[#E8C547] text-[#1A1A2E] font-bold uppercase tracking-wider rounded-lg hover:bg-[#D4A800] transition-colors text-center text-sm"
+        >
+          Continue Shopping
+        </Link>
+        <Link
+          to="/account"
+          className="flex-1 py-3 px-6 border border-[#E8C547] text-[#E8C547] font-bold uppercase tracking-wider rounded-lg hover:bg-[#E8C547]/10 transition-colors text-center text-sm"
+        >
+          My Orders
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export default function CheckoutPage() {
+  const navigate = useNavigate();
+  const { cart, loading: cartLoading } = useCart();
+  const { user, loading: authLoading } = useAuth();
+  const [completedOrder, setCompletedOrder] = useState(null);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/login', { state: { from: { pathname: '/checkout' } } });
+    }
+  }, [user, authLoading, navigate]);
+
+  // Redirect to cart if cart is empty (and not loading)
+  useEffect(() => {
+    if (!cartLoading && cart && (!cart.items || cart.items.length === 0) && !completedOrder) {
+      navigate('/cart');
+    }
+  }, [cart, cartLoading, navigate, completedOrder]);
+
+  const items = cart?.items || [];
+  const subtotal = cart?.totalPrice || 0;
+  const shipping = subtotal >= 100 ? 0 : 9.99;
+  const tax = subtotal * 0.08;
+  const total = subtotal + shipping + tax;
+
+  // Show success screen after order
+  if (completedOrder) {
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: 'linear-gradient(135deg, #1A1A2E 0%, #0F3460 100%)' }}
+      >
+        <div className="max-w-2xl mx-auto px-4 py-16">
+          <div className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-8">
+            <OrderSuccess order={completedOrder} />
+          </div>
         </div>
       </div>
     );
   }
 
-  const onSubmit = async (data) => {
-    setIsSubmitting(true);
-    try {
-      // Will be replaced with actual API call in task 5
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      clearCart();
-      setOrderSuccess(true);
-    } catch (err) {
-      console.error('Order failed:', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="page-enter min-h-screen">
-      {/* Page header */}
-      <div className="bg-navy-surface border-b border-ballers-border py-8">
-        <div className="container-ballers">
-          <h1 className="font-bebas text-section text-white">CHECKOUT</h1>
+  if (authLoading || cartLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#1A1A2E' }}>
+        <div className="flex flex-col items-center gap-4">
+          <svg className="animate-spin w-10 h-10 text-[#E8C547]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p className="text-[#A8B2C1] text-sm">Loading checkout...</p>
         </div>
       </div>
+    );
+  }
 
-      <div className="container-ballers py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Checkout form */}
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            className="lg:col-span-2 space-y-8"
-            noValidate
-            aria-label="Checkout form"
+  return (
+    <div
+      className="min-h-screen"
+      style={{ background: 'linear-gradient(135deg, #1A1A2E 0%, #0F3460 100%)' }}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page header */}
+        <div className="mb-8">
+          <Link
+            to="/cart"
+            className="inline-flex items-center gap-2 text-[#A8B2C1] hover:text-white text-sm transition-colors mb-4"
           >
-            {/* 1. Contact Info */}
-            <section className="bg-navy-surface border border-ballers-border rounded-xl p-6">
-              <h2 className="font-bebas text-xl text-white tracking-wider mb-6">
-                1. CONTACT INFO
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Cart
+          </Link>
+          <h1
+            className="text-4xl font-black text-white uppercase tracking-wider"
+            style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+          >
+            Checkout
+          </h1>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          {/* ── Left: Checkout Form ── */}
+          <div className="lg:col-span-3">
+            <div className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-6 sm:p-8">
+              <CheckoutForm onOrderSuccess={setCompletedOrder} />
+            </div>
+          </div>
+
+          {/* ── Right: Order Summary ── */}
+          <div className="lg:col-span-2">
+            <div className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-6 sticky top-24">
+              <h2
+                className="text-xl font-bold text-white uppercase tracking-wider mb-5"
+                style={{ fontFamily: "'Bebas Neue', sans-serif" }}
+              >
+                Order Summary
               </h2>
-              <div className="space-y-4">
-                <FormField label="Email" error={errors.email?.message} required>
-                  <input
-                    {...register('email')}
-                    type="email"
-                    placeholder="your@email.com"
-                    className="input-field"
-                    autoComplete="email"
-                  />
-                </FormField>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="First Name" error={errors.firstName?.message} required>
-                    <input
-                      {...register('firstName')}
-                      type="text"
-                      placeholder="John"
-                      className="input-field"
-                      autoComplete="given-name"
-                    />
-                  </FormField>
-                  <FormField label="Last Name" error={errors.lastName?.message} required>
-                    <input
-                      {...register('lastName')}
-                      type="text"
-                      placeholder="Doe"
-                      className="input-field"
-                      autoComplete="family-name"
-                    />
-                  </FormField>
+
+              {/* Items */}
+              <div className="mb-4">
+                {items.length === 0 ? (
+                  <p className="text-[#A8B2C1] text-sm text-center py-4">Your cart is empty.</p>
+                ) : (
+                  items.map((item) => (
+                    <OrderItem key={item._id || item.id} item={item} />
+                  ))
+                )}
+              </div>
+
+              {/* Totals */}
+              <div className="border-t border-[#2A3550] pt-4 flex flex-col gap-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#A8B2C1]">Subtotal</span>
+                  <span className="text-white">{formatPrice(subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#A8B2C1]">Shipping</span>
+                  <span className={shipping === 0 ? 'text-[#27AE60] font-medium' : 'text-white'}>
+                    {shipping === 0 ? 'Free' : formatPrice(shipping)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#A8B2C1]">Tax (8%)</span>
+                  <span className="text-white">{formatPrice(tax)}</span>
+                </div>
+                <div className="flex justify-between text-base font-bold border-t border-[#2A3550] pt-3 mt-1">
+                  <span className="text-white">Total</span>
+                  <span className="text-[#E8C547]">{formatPrice(total)}</span>
                 </div>
               </div>
-            </section>
 
-            {/* 2. Shipping */}
-            <section className="bg-navy-surface border border-ballers-border rounded-xl p-6">
-              <h2 className="font-bebas text-xl text-white tracking-wider mb-6">
-                2. SHIPPING ADDRESS
-              </h2>
-              <div className="space-y-4">
-                <FormField label="Address" error={errors.address?.message} required>
-                  <input
-                    {...register('address')}
-                    type="text"
-                    placeholder="123 Main Street"
-                    className="input-field"
-                    autoComplete="street-address"
-                  />
-                </FormField>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="City" error={errors.city?.message} required>
-                    <input
-                      {...register('city')}
-                      type="text"
-                      placeholder="New York"
-                      className="input-field"
-                      autoComplete="address-level2"
-                    />
-                  </FormField>
-                  <FormField label="ZIP / Postal Code" error={errors.zipCode?.message} required>
-                    <input
-                      {...register('zipCode')}
-                      type="text"
-                      placeholder="10001"
-                      className="input-field"
-                      autoComplete="postal-code"
-                    />
-                  </FormField>
-                </div>
-                <FormField label="Country" error={errors.country?.message} required>
-                  <select
-                    {...register('country')}
-                    className="input-field"
-                    autoComplete="country"
-                  >
-                    <option value="">Select country...</option>
-                    <option value="US">United States</option>
-                    <option value="GB">United Kingdom</option>
-                    <option value="BR">Brazil</option>
-                    <option value="AR">Argentina</option>
-                    <option value="FR">France</option>
-                    <option value="DE">Germany</option>
-                    <option value="ES">Spain</option>
-                    <option value="PT">Portugal</option>
-                    <option value="IT">Italy</option>
-                    <option value="NL">Netherlands</option>
-                    <option value="MX">Mexico</option>
-                    <option value="JP">Japan</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </FormField>
-              </div>
-            </section>
-
-            {/* 3. Payment */}
-            <section className="bg-navy-surface border border-ballers-border rounded-xl p-6">
-              <h2 className="font-bebas text-xl text-white tracking-wider mb-6">
-                3. PAYMENT
-              </h2>
-              <div className="space-y-4">
-                <FormField label="Card Number" error={errors.cardNumber?.message} required>
-                  <input
-                    {...register('cardNumber')}
-                    type="text"
-                    placeholder="1234 5678 9012 3456"
-                    className="input-field"
-                    maxLength={19}
-                    autoComplete="cc-number"
-                    onChange={(e) => {
-                      const formatted = formatCardNumber(e.target.value);
-                      setValue('cardNumber', formatted);
-                    }}
-                  />
-                </FormField>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Expiry Date" error={errors.expiryDate?.message} required>
-                    <input
-                      {...register('expiryDate')}
-                      type="text"
-                      placeholder="MM/YY"
-                      className="input-field"
-                      maxLength={5}
-                      autoComplete="cc-exp"
-                      onChange={(e) => {
-                        const formatted = formatExpiryDate(e.target.value);
-                        setValue('expiryDate', formatted);
-                      }}
-                    />
-                  </FormField>
-                  <FormField label="CVV" error={errors.cvv?.message} required>
-                    <input
-                      {...register('cvv')}
-                      type="text"
-                      placeholder="123"
-                      className="input-field"
-                      maxLength={4}
-                      autoComplete="cc-csc"
-                    />
-                  </FormField>
-                </div>
-              </div>
-            </section>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="btn-primary w-full text-lg py-4"
-            >
-              {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              {/* Trust badges */}
+              <div className="mt-5 flex flex-col gap-2">
+                <div className="flex items-center gap-2 text-xs text-[#A8B2C1]">
+                  <svg className="w-4 h-4 text-[#27AE60] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                   </svg>
-                  Processing...
-                </span>
-              ) : (
-                'PLACE ORDER'
-              )}
-            </button>
-          </form>
-
-          {/* Order summary */}
-          <div>
-            <CheckoutOrderSummary items={items} subtotal={subtotal} />
+                  SSL encrypted & secure checkout
+                </div>
+                <div className="flex items-center gap-2 text-xs text-[#A8B2C1]">
+                  <svg className="w-4 h-4 text-[#27AE60] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  Official World Cup 2026 Licensed
+                </div>
+                <div className="flex items-center gap-2 text-xs text-[#A8B2C1]">
+                  <svg className="w-4 h-4 text-[#27AE60] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  Free returns within 30 days
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-export default CheckoutPage;

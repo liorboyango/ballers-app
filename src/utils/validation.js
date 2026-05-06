@@ -1,10 +1,13 @@
 /**
- * Client-side validation schemas using Zod.
- * Used with React Hook Form for form validation.
+ * Zod validation schemas for all forms in the Ballers application.
+ * Used with React Hook Form's zodResolver.
  */
 import { z } from 'zod';
 
-/** Login form schema */
+// ---------------------------------------------------------------------------
+// Auth schemas
+// ---------------------------------------------------------------------------
+
 export const loginSchema = z.object({
   email: z
     .string()
@@ -16,12 +19,11 @@ export const loginSchema = z.object({
     .min(6, 'Password must be at least 6 characters'),
 });
 
-/** Registration form schema */
 export const registerSchema = z
   .object({
     name: z
       .string()
-      .min(1, 'Name is required')
+      .min(1, 'Full name is required')
       .min(2, 'Name must be at least 2 characters')
       .max(50, 'Name must be less than 50 characters'),
     email: z
@@ -40,66 +42,132 @@ export const registerSchema = z
     path: ['confirmPassword'],
   });
 
-/** Checkout shipping address schema */
-export const shippingSchema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().min(1, 'Email is required').email('Invalid email address'),
-  address: z.string().min(1, 'Address is required'),
-  city: z.string().min(1, 'City is required'),
-  zip: z.string().min(1, 'ZIP code is required'),
-  country: z.string().min(1, 'Country is required'),
-  phone: z.string().optional(),
-});
+// ---------------------------------------------------------------------------
+// Checkout schema
+// ---------------------------------------------------------------------------
 
-/** Payment info schema */
-export const paymentSchema = z.object({
-  method: z.enum(['card', 'paypal']),
-  cardNumber: z
+export const checkoutSchema = z.object({
+  // Contact / Shipping
+  firstName: z
+    .string()
+    .min(1, 'First name is required')
+    .max(50, 'First name is too long'),
+  lastName: z
+    .string()
+    .min(1, 'Last name is required')
+    .max(50, 'Last name is too long'),
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Please enter a valid email address'),
+  phone: z
     .string()
     .optional()
     .refine(
-      (val) => !val || /^\d{16}$/.test(val.replace(/\s/g, '')),
-      'Card number must be 16 digits'
+      (val) => !val || /^[\+]?[\d\s\-\(\)]{7,20}$/.test(val),
+      'Please enter a valid phone number'
     ),
-  cardHolder: z.string().optional(),
-  expiryMonth: z
+  address: z
     .string()
-    .optional()
-    .refine(
-      (val) => !val || /^(0[1-9]|1[0-2])$/.test(val),
-      'Invalid expiry month (MM)'
-    ),
-  expiryYear: z
+    .min(1, 'Address is required')
+    .max(200, 'Address is too long'),
+  city: z
     .string()
-    .optional()
-    .refine(
-      (val) => !val || /^\d{4}$/.test(val),
-      'Invalid expiry year (YYYY)'
-    ),
-  cvv: z
+    .min(1, 'City is required')
+    .max(100, 'City is too long'),
+  zip: z
     .string()
-    .optional()
-    .refine(
-      (val) => !val || /^\d{3,4}$/.test(val),
-      'CVV must be 3 or 4 digits'
-    ),
-});
+    .min(1, 'ZIP / Postal code is required')
+    .max(20, 'ZIP code is too long'),
+  country: z
+    .string()
+    .min(1, 'Country is required'),
 
-/** Jersey customization schema */
-export const customizationSchema = z.object({
-  size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL'], {
-    errorMap: () => ({ message: 'Please select a size' }),
+  // Payment
+  paymentMethod: z.enum(['card', 'paypal'], {
+    required_error: 'Please select a payment method',
   }),
-  number: z
-    .union([z.string(), z.number()])
-    .optional()
-    .refine(
-      (val) => !val || (Number(val) >= 1 && Number(val) <= 99),
-      'Jersey number must be between 1 and 99'
-    ),
-  name: z
-    .string()
-    .max(20, 'Name must be 20 characters or less')
-    .optional(),
+  cardNumber: z.string().optional(),
+  cardHolder: z.string().optional(),
+  expiryMonth: z.string().optional(),
+  expiryYear: z.string().optional(),
+  cvv: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.paymentMethod === 'card') {
+    // Card number: 16 digits (spaces allowed)
+    if (!data.cardNumber || data.cardNumber.replace(/\s/g, '').length < 16) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Please enter a valid 16-digit card number',
+        path: ['cardNumber'],
+      });
+    }
+    if (!data.cardHolder || data.cardHolder.trim().length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Card holder name is required',
+        path: ['cardHolder'],
+      });
+    }
+    if (!data.expiryMonth || !/^(0[1-9]|1[0-2])$/.test(data.expiryMonth)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid month (MM)',
+        path: ['expiryMonth'],
+      });
+    }
+    const currentYear = new Date().getFullYear() % 100;
+    if (
+      !data.expiryYear ||
+      !/^\d{2}$/.test(data.expiryYear) ||
+      parseInt(data.expiryYear, 10) < currentYear
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid expiry year (YY)',
+        path: ['expiryYear'],
+      });
+    }
+    if (!data.cvv || !/^\d{3,4}$/.test(data.cvv)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a valid CVV (3-4 digits)',
+        path: ['cvv'],
+      });
+    }
+  }
 });
+
+// Country list for the checkout form
+export const COUNTRIES = [
+  { value: '', label: 'Select country...' },
+  { value: 'US', label: 'United States' },
+  { value: 'GB', label: 'United Kingdom' },
+  { value: 'CA', label: 'Canada' },
+  { value: 'AU', label: 'Australia' },
+  { value: 'DE', label: 'Germany' },
+  { value: 'FR', label: 'France' },
+  { value: 'ES', label: 'Spain' },
+  { value: 'IT', label: 'Italy' },
+  { value: 'BR', label: 'Brazil' },
+  { value: 'AR', label: 'Argentina' },
+  { value: 'MX', label: 'Mexico' },
+  { value: 'JP', label: 'Japan' },
+  { value: 'KR', label: 'South Korea' },
+  { value: 'NL', label: 'Netherlands' },
+  { value: 'PT', label: 'Portugal' },
+  { value: 'BE', label: 'Belgium' },
+  { value: 'CH', label: 'Switzerland' },
+  { value: 'SE', label: 'Sweden' },
+  { value: 'NO', label: 'Norway' },
+  { value: 'DK', label: 'Denmark' },
+  { value: 'PL', label: 'Poland' },
+  { value: 'CZ', label: 'Czech Republic' },
+  { value: 'AT', label: 'Austria' },
+  { value: 'NZ', label: 'New Zealand' },
+  { value: 'ZA', label: 'South Africa' },
+  { value: 'NG', label: 'Nigeria' },
+  { value: 'MA', label: 'Morocco' },
+  { value: 'SN', label: 'Senegal' },
+  { value: 'OTHER', label: 'Other' },
+];

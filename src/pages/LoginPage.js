@@ -1,171 +1,150 @@
 /**
- * Login Page
- * Authentication form with email/password login.
- * Redirects to home on success.
+ * LoginPage - Combined Login / Register page.
+ * Displays a tab switcher between LoginForm and RegisterForm.
+ * Styled with the Ballers dark navy theme.
  */
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useAuth } from '../context/AuthContext';
-import { loginSchema } from '../utils/validation';
+import LoginForm from '../components/forms/LoginForm';
+import RegisterForm from '../components/forms/RegisterForm';
+import { useAuth } from '../hooks/useAuth';
 
-function LoginPage() {
+export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated, isLoading, error, clearError } = useAuth();
+  const { user } = useAuth();
 
-  // Redirect if already authenticated
+  // Allow deep-linking to register tab via ?tab=register
+  const params = new URLSearchParams(location.search);
+  const initialTab = params.get('tab') === 'register' ? 'register' : 'login';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Redirect if already logged in
   useEffect(() => {
-    if (isAuthenticated) {
+    if (user) {
       const from = location.state?.from?.pathname || '/';
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, location]);
+  }, [user, navigate, location.state]);
 
-  // Clear error on unmount
-  useEffect(() => {
-    return () => clearError();
-  }, [clearError]);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(loginSchema),
-  });
-
-  const onSubmit = async (data) => {
-    await login(data.email, data.password);
+  const handleSuccess = () => {
+    const from = location.state?.from?.pathname || '/';
+    navigate(from, { replace: true });
   };
 
   return (
-    <div
-      className="page-enter min-h-screen flex items-center justify-center px-4"
-      style={{ background: 'linear-gradient(135deg, #1A1A2E 0%, #0F3460 100%)' }}
+    <main
+      className="min-h-screen flex items-center justify-center px-4 py-12"
+      style={{
+        background: 'linear-gradient(135deg, #1A1A2E 0%, #0F3460 100%)',
+      }}
     >
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link
             to="/"
-            className="font-bebas text-5xl text-gold tracking-wider hover:text-gold-hover transition-colors"
+            className="inline-block"
+            aria-label="Ballers - go to home page"
           >
-            BALLERS
+            <span
+              className="text-5xl font-black tracking-widest"
+              style={{ fontFamily: "'Bebas Neue', sans-serif", color: '#E8C547' }}
+            >
+              BALLERS
+            </span>
           </Link>
-          <p className="text-ballers-muted text-sm mt-2">Wear the Game</p>
-        </div>
-
-        {/* Card */}
-        <div className="bg-navy-surface border border-ballers-border rounded-2xl p-8">
-          <h1 className="font-bebas text-3xl text-white tracking-wider mb-2">WELCOME BACK</h1>
-          <p className="text-ballers-muted text-sm mb-8">Sign in to your account</p>
-
-          {/* Error message */}
-          {error && (
-            <div
-              className="bg-ballers-red/10 border border-ballers-red/30 rounded-lg p-3 mb-6"
-              role="alert"
-            >
-              <p className="text-ballers-red text-sm">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-5">
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-ballers-muted mb-1.5">
-                Email Address
-              </label>
-              <input
-                id="email"
-                {...register('email')}
-                type="email"
-                placeholder="your@email.com"
-                className="input-field"
-                autoComplete="email"
-                aria-describedby={errors.email ? 'email-error' : undefined}
-              />
-              {errors.email && (
-                <p id="email-error" className="text-ballers-red text-xs mt-1" role="alert">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-ballers-muted mb-1.5">
-                Password
-              </label>
-              <input
-                id="password"
-                {...register('password')}
-                type="password"
-                placeholder="••••••••"
-                className="input-field"
-                autoComplete="current-password"
-                aria-describedby={errors.password ? 'password-error' : undefined}
-              />
-              {errors.password && (
-                <p id="password-error" className="text-ballers-red text-xs mt-1" role="alert">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="btn-primary w-full py-3.5 text-base"
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                'LOGIN'
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 border-t border-ballers-border" />
-            <span className="text-ballers-muted text-xs uppercase tracking-widest">or</span>
-            <div className="flex-1 border-t border-ballers-border" />
-          </div>
-
-          {/* Register link */}
-          <p className="text-center text-ballers-muted text-sm">
-            New here?{' '}
-            <Link
-              to="/register"
-              className="text-gold hover:text-gold-hover font-medium transition-colors"
-            >
-              Create Account
-            </Link>
+          <p className="text-[#A8B2C1] text-sm mt-2 tracking-wide uppercase">
+            Wear the Game
           </p>
         </div>
 
-        {/* Back to shop */}
-        <p className="text-center mt-6">
-          <Link
-            to="/products"
-            className="text-ballers-muted text-sm hover:text-gold transition-colors"
+        {/* Card */}
+        <div className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-8 shadow-2xl">
+          {/* Tab switcher */}
+          <div
+            className="flex rounded-lg overflow-hidden border border-[#2A3550] mb-8"
+            role="tablist"
+            aria-label="Authentication options"
           >
-            Continue as guest →
-          </Link>
+            <button
+              role="tab"
+              aria-selected={activeTab === 'login'}
+              aria-controls="tab-panel-login"
+              id="tab-login"
+              onClick={() => setActiveTab('login')}
+              className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${
+                activeTab === 'login'
+                  ? 'bg-[#E8C547] text-[#1A1A2E]'
+                  : 'text-[#A8B2C1] hover:text-white'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === 'register'}
+              aria-controls="tab-panel-register"
+              id="tab-register"
+              onClick={() => setActiveTab('register')}
+              className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors ${
+                activeTab === 'register'
+                  ? 'bg-[#E8C547] text-[#1A1A2E]'
+                  : 'text-[#A8B2C1] hover:text-white'
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
+          {/* Tab panels */}
+          <div
+            id="tab-panel-login"
+            role="tabpanel"
+            aria-labelledby="tab-login"
+            hidden={activeTab !== 'login'}
+          >
+            {activeTab === 'login' && (
+              <>
+                <h1 className="text-2xl font-bold text-white mb-6">
+                  Welcome Back
+                </h1>
+                <LoginForm
+                  onSuccess={handleSuccess}
+                  onSwitchToRegister={() => setActiveTab('register')}
+                />
+              </>
+            )}
+          </div>
+
+          <div
+            id="tab-panel-register"
+            role="tabpanel"
+            aria-labelledby="tab-register"
+            hidden={activeTab !== 'register'}
+          >
+            {activeTab === 'register' && (
+              <>
+                <h1 className="text-2xl font-bold text-white mb-6">
+                  Create Your Account
+                </h1>
+                <RegisterForm
+                  onSuccess={handleSuccess}
+                  onSwitchToLogin={() => setActiveTab('login')}
+                />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Footer note */}
+        <p className="text-center text-xs text-[#A8B2C1] mt-6">
+          By continuing, you agree to our{' '}
+          <span className="text-[#E8C547] cursor-pointer hover:underline">Terms of Service</span>
+          {' '}and{' '}
+          <span className="text-[#E8C547] cursor-pointer hover:underline">Privacy Policy</span>.
         </p>
       </div>
-    </div>
+    </main>
   );
 }
-
-export default LoginPage;
