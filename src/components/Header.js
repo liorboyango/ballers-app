@@ -1,14 +1,11 @@
 /**
- * Header — persistent navigation bar.
+ * Header — light theme top navigation matching design mocks.
  *
  * Features:
- *  - Sticky with blur backdrop on scroll
- *  - Logo linking to home
- *  - Desktop nav links
- *  - Cart icon with item count badge (animated)
- *  - User menu (login/logout)
- *  - Mobile hamburger menu
- *  - Accessible keyboard navigation
+ *  - White surface, green Ballers logo
+ *  - Nav: Shop · National Teams · Custom Kits · Dashboard (admin-only)
+ *  - Cart icon + count, account icon (login or user menu)
+ *  - Mobile hamburger
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
@@ -22,21 +19,14 @@ const Header = () => {
   const { showSuccess } = useToast();
   const navigate = useNavigate();
 
-  const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [prevTotalItems, setPrevTotalItems] = useState(totalItems);
   const [cartBadgeAnimate, setCartBadgeAnimate] = useState(false);
   const userMenuRef = useRef(null);
 
-  // Scroll detection for sticky blur effect
-  useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 10);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  const isAdmin = user?.role === 'admin';
 
-  // Animate cart badge when item count increases
   useEffect(() => {
     if (totalItems > prevTotalItems) {
       setCartBadgeAnimate(true);
@@ -46,7 +36,6 @@ const Header = () => {
     setPrevTotalItems(totalItems);
   }, [totalItems, prevTotalItems]);
 
-  // Close user menu on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
@@ -66,26 +55,24 @@ const Header = () => {
   };
 
   const navLinks = [
-    { to: '/teams', label: 'Teams' },
     { to: '/products', label: 'Shop' },
+    { to: '/teams', label: 'National Teams' },
+    { to: '/custom-kits', label: 'Custom Kits' },
+    ...(isAdmin ? [{ to: '/admin', label: 'Dashboard' }] : []),
   ];
 
+  const navLinkClass = ({ isActive }) =>
+    `text-[15px] font-medium transition-colors ${
+      isActive ? 'text-brand' : 'text-ink-soft hover:text-brand'
+    }`;
+
   return (
-    <header
-      className={`
-        sticky top-0 z-40 transition-all duration-300
-        ${
-          isScrolled
-            ? 'bg-[#1A1A2E]/95 backdrop-blur-md shadow-lg shadow-black/20'
-            : 'bg-[#1A1A2E]'
-        }
-      `}
-    >
+    <header className="sticky top-0 z-40 bg-white border-b border-line">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Mobile: hamburger */}
+          {/* Mobile hamburger */}
           <button
-            className="lg:hidden text-[#A8B2C1] hover:text-white p-2 -ml-2"
+            className="lg:hidden text-ink-soft hover:text-ink p-2 -ml-2"
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
             aria-expanded={isMobileMenuOpen}
@@ -99,60 +86,45 @@ const Header = () => {
             </svg>
           </button>
 
-          {/* Logo */}
-          <Link
-            to="/"
-            className="text-2xl font-black tracking-widest text-[#E8C547] hover:text-[#D4A800] transition-colors"
-            style={{ fontFamily: "'Bebas Neue', sans-serif" }}
-            aria-label="Ballers - Home"
-          >
-            BALLERS
-          </Link>
+          {/* Logo + nav */}
+          <div className="flex items-center gap-10">
+            <Link
+              to="/"
+              className="text-2xl font-extrabold tracking-tight text-brand hover:text-brand-dark transition-colors text-display"
+              aria-label="Ballers - Home"
+            >
+              Ballers
+            </Link>
 
-          {/* Desktop nav */}
-          <nav className="hidden lg:flex items-center gap-8" aria-label="Main navigation">
-            {navLinks.map(({ to, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `text-sm font-medium uppercase tracking-widest transition-colors ${
-                    isActive
-                      ? 'text-[#E8C547]'
-                      : 'text-[#A8B2C1] hover:text-white'
-                  }`
-                }
-              >
-                {label}
-              </NavLink>
-            ))}
-          </nav>
+            <nav className="hidden lg:flex items-center gap-7" aria-label="Main navigation">
+              {navLinks.map(({ to, label }) => (
+                <NavLink key={to} to={to} className={navLinkClass} end={to === '/'}>
+                  {label}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
 
           {/* Right actions */}
-          <div className="flex items-center gap-3">
-            {/* Cart button */}
+          <div className="flex items-center gap-1">
             <button
               onClick={openCart}
-              className="relative p-2 text-[#A8B2C1] hover:text-white transition-colors"
+              className="relative p-2 text-ink-soft hover:text-brand transition-colors"
               aria-label={`Shopping cart, ${totalItems} item${totalItems !== 1 ? 's' : ''}`}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7}>
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
               {totalItems > 0 && (
                 <span
-                  className={`
-                    absolute -top-1 -right-1 min-w-[20px] h-5 px-1
-                    bg-[#E8C547] text-[#1A1A2E] text-xs font-bold
-                    rounded-full flex items-center justify-center
-                    transition-transform
-                    ${cartBadgeAnimate ? 'scale-125' : 'scale-100'}
-                  `}
+                  className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1
+                    bg-brand text-white text-[10px] font-bold rounded-full
+                    flex items-center justify-center transition-transform
+                    ${cartBadgeAnimate ? 'scale-125' : 'scale-100'}`}
                   aria-hidden="true"
                 >
                   {totalItems > 99 ? '99+' : totalItems}
@@ -160,33 +132,47 @@ const Header = () => {
               )}
             </button>
 
-            {/* User menu */}
             {isAuthenticated ? (
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setIsUserMenuOpen((prev) => !prev)}
-                  className="flex items-center gap-2 p-2 text-[#A8B2C1] hover:text-white transition-colors"
+                  className="flex items-center gap-2 p-1.5 text-ink-soft hover:text-brand transition-colors"
                   aria-label="User menu"
                   aria-expanded={isUserMenuOpen}
                   aria-haspopup="true"
                 >
-                  <div className="w-8 h-8 rounded-full bg-[#0F3460] border border-[#2A3550] flex items-center justify-center text-sm font-bold text-[#E8C547]">
+                  <div className="w-8 h-8 rounded-full bg-brand-50 border border-brand/20 flex items-center justify-center text-sm font-bold text-brand">
                     {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                 </button>
 
                 {isUserMenuOpen && (
                   <div
-                    className="absolute right-0 mt-2 w-48 bg-[#16213E] border border-[#2A3550] rounded-xl shadow-2xl py-1 z-50"
+                    className="absolute right-0 mt-2 w-56 bg-white border border-line rounded-xl shadow-elevated py-1 z-50"
                     role="menu"
                   >
-                    <div className="px-4 py-2 border-b border-[#2A3550]">
-                      <p className="text-sm font-medium text-white truncate">{user?.name}</p>
-                      <p className="text-xs text-[#A8B2C1] truncate">{user?.email}</p>
+                    <div className="px-4 py-3 border-b border-line">
+                      <p className="text-sm font-semibold text-ink truncate">{user?.name}</p>
+                      <p className="text-xs text-ink-muted truncate">{user?.email}</p>
+                      {isAdmin && (
+                        <span className="inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-brand-50 text-brand">
+                          Admin
+                        </span>
+                      )}
                     </div>
+                    {isAdmin && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="block px-4 py-2 text-sm text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
+                        role="menuitem"
+                      >
+                        Admin Dashboard
+                      </Link>
+                    )}
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-[#A8B2C1] hover:text-white hover:bg-[#0F3460] transition-colors"
+                      className="w-full text-left px-4 py-2 text-sm text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
                       role="menuitem"
                     >
                       Sign Out
@@ -197,22 +183,21 @@ const Header = () => {
             ) : (
               <Link
                 to="/login"
-                className="hidden sm:flex items-center gap-1 text-sm font-medium text-[#A8B2C1] hover:text-white transition-colors uppercase tracking-wider"
+                className="p-2 text-ink-soft hover:text-brand transition-colors"
+                aria-label="Sign in"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                Login
               </Link>
             )}
           </div>
         </div>
       </div>
 
-      {/* Mobile menu */}
       {isMobileMenuOpen && (
         <div
-          className="lg:hidden bg-[#16213E] border-t border-[#2A3550] px-4 py-4"
+          className="lg:hidden bg-white border-t border-line px-4 py-4"
           role="navigation"
           aria-label="Mobile navigation"
         >
@@ -223,10 +208,10 @@ const Header = () => {
                 to={to}
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={({ isActive }) =>
-                  `px-3 py-2 rounded-lg text-sm font-medium uppercase tracking-widest transition-colors ${
+                  `px-3 py-2.5 rounded-lg text-[15px] font-medium transition-colors ${
                     isActive
-                      ? 'bg-[#0F3460] text-[#E8C547]'
-                      : 'text-[#A8B2C1] hover:text-white hover:bg-[#0F3460]'
+                      ? 'bg-brand-50 text-brand'
+                      : 'text-ink-soft hover:text-ink hover:bg-surface-muted'
                   }`
                 }
               >
@@ -237,15 +222,15 @@ const Header = () => {
               <NavLink
                 to="/login"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="px-3 py-2 rounded-lg text-sm font-medium uppercase tracking-widest text-[#A8B2C1] hover:text-white hover:bg-[#0F3460] transition-colors"
+                className="px-3 py-2.5 rounded-lg text-[15px] font-medium text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
               >
-                Login
+                Sign In
               </NavLink>
             )}
             {isAuthenticated && (
               <button
                 onClick={handleLogout}
-                className="text-left px-3 py-2 rounded-lg text-sm font-medium uppercase tracking-widest text-[#A8B2C1] hover:text-white hover:bg-[#0F3460] transition-colors"
+                className="text-left px-3 py-2.5 rounded-lg text-[15px] font-medium text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
               >
                 Sign Out
               </button>

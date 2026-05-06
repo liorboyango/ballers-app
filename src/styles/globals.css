@@ -1,18 +1,17 @@
-/* Ballers Global Styles */
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;700&display=swap');
+/* Ballers Global Styles — light theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Roboto+Mono:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Base styles */
 @layer base {
   html {
     scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-navy text-white font-inter;
+    @apply bg-surface-muted text-ink font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -21,27 +20,104 @@
     box-sizing: border-box;
   }
 
-  /* Custom scrollbar */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    background: #1A1A2E;
+    background: #F0F2F4;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #2A3550;
-    border-radius: 3px;
+    background: #D1D5DB;
+    border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #E8C547;
+    background: #1F6E3A;
   }
 }
 
-/* Component utilities */
+@layer components {
+  .container-ballers {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-brand text-white font-semibold
+           rounded-lg px-5 py-3 transition-colors hover:bg-brand-dark
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2
+           disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-white text-ink font-semibold
+           border border-line rounded-lg px-5 py-3 transition-colors
+           hover:border-ink-faint hover:bg-surface-muted
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2
+           disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 text-ink-soft font-medium
+           rounded-lg px-3 py-2 transition-colors hover:bg-surface-muted;
+  }
+
+  .card {
+    @apply bg-white border border-line rounded-xl shadow-card;
+  }
+
+  .input-field {
+    @apply w-full bg-white border border-line rounded-lg px-3 py-2.5 text-sm text-ink
+           placeholder:text-ink-faint
+           focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand
+           disabled:bg-surface-muted disabled:cursor-not-allowed;
+  }
+
+  .size-btn {
+    @apply min-w-[40px] h-10 px-3 inline-flex items-center justify-center
+           bg-white border border-line rounded-lg text-sm font-medium text-ink
+           transition-colors hover:border-ink-faint;
+  }
+
+  .size-btn-selected {
+    @apply bg-ink text-white border-ink;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider;
+  }
+
+  .badge-new {
+    @apply badge bg-brand text-white;
+  }
+
+  .badge-edition {
+    @apply badge bg-brand-900 text-white;
+  }
+
+  .badge-sale {
+    @apply badge bg-accent-danger text-white;
+  }
+
+  .badge-instock {
+    @apply badge bg-badge-inStock text-badge-inStockText normal-case tracking-normal;
+  }
+
+  .badge-lowstock {
+    @apply badge bg-badge-lowStock text-badge-lowStockText normal-case tracking-normal;
+  }
+
+  .badge-outstock {
+    @apply badge bg-badge-outStock text-badge-outStockText normal-case tracking-normal;
+  }
+
+  .skeleton {
+    @apply bg-surface-sunken animate-pulse;
+  }
+}
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -52,27 +128,18 @@
     display: none;
   }
 
-  .font-bebas {
-    font-family: 'Bebas Neue', sans-serif;
-  }
-
-  .font-inter {
-    font-family: 'Inter', sans-serif;
-  }
-
-  .font-mono {
-    font-family: 'Roboto Mono', monospace;
+  .text-display {
+    font-family: 'Plus Jakarta Sans', Inter, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Page transition */
 .page-enter {
-  opacity: 0;
-  transform: translateY(8px);
+  animation: pageEnter 200ms ease both;
 }
 
-.page-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 200ms ease, transform 200ms ease;
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

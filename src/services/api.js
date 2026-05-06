@@ -51,17 +51,27 @@ apiClient.interceptors.response.use(
         window.dispatchEvent(new CustomEvent('auth:logout'));
       }
 
-      // Normalize error message
+      // Normalize error message — always emit a string. Backends sometimes
+      // return `error` as an object envelope (e.g. {statusCode, status, errors}).
+      const pickString = (...vals) => {
+        for (const v of vals) {
+          if (typeof v === 'string' && v.trim()) return v;
+        }
+        return null;
+      };
+
       const message =
-        data?.error ||
-        data?.message ||
-        (data?.errors && data.errors[0]?.message) ||
-        'An unexpected error occurred';
+        pickString(
+          typeof data?.error === 'string' ? data.error : data?.error?.message,
+          data?.message,
+          data?.errors?.[0]?.message,
+          error.message
+        ) || 'An unexpected error occurred';
 
       return Promise.reject({
         status,
         message,
-        errors: data?.errors || [],
+        errors: Array.isArray(data?.errors) ? data.errors : [],
         originalError: error,
       });
     }

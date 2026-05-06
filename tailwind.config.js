@@ -7,26 +7,68 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        navy: {
-          DEFAULT: '#1A1A2E',
-          dark: '#0D0D1A',
-          surface: '#16213E',
-          deep: '#0F3460',
+        // Brand greens (logo + primary CTA)
+        brand: {
+          DEFAULT: '#1F6E3A',
+          dark: '#16542B',
+          light: '#2E8B4F',
+          50: '#E8F3EC',
+          100: '#CFE6D7',
+          600: '#1F6E3A',
+          700: '#16542B',
+          900: '#0E3A1D',
         },
-        gold: {
-          DEFAULT: '#E8C547',
-          hover: '#D4A800',
+        // Surfaces
+        surface: {
+          DEFAULT: '#FFFFFF',
+          muted: '#F6F7F8',
+          subtle: '#F0F2F4',
+          sunken: '#E9ECEF',
         },
-        ballers: {
-          red: '#C0392B',
-          muted: '#A8B2C1',
-          border: '#2A3550',
+        ink: {
+          DEFAULT: '#111418',
+          soft: '#3B4149',
+          muted: '#6B7280',
+          faint: '#9AA1A9',
+        },
+        line: {
+          DEFAULT: '#E5E7EB',
+          strong: '#D1D5DB',
+        },
+        // Status / accents
+        accent: {
+          danger: '#D03A2E',
+          warning: '#E0A12B',
+          info: '#2563EB',
+          success: '#1F6E3A',
+        },
+        // Badges
+        badge: {
+          new: '#16542B',
+          edition: '#0E3A1D',
+          sale: '#D03A2E',
+          lowStock: '#FEE2E2',
+          lowStockText: '#B42318',
+          inStock: '#D1FAE0',
+          inStockText: '#065F2A',
+          outStock: '#E5E7EB',
+          outStockText: '#6B7280',
         },
       },
       fontFamily: {
-        bebas: ['Bebas Neue', 'sans-serif'],
-        inter: ['Inter', 'sans-serif'],
-        mono: ['Roboto Mono', 'monospace'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        display: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+        mono: ['"Roboto Mono"', 'monospace'],
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(17, 20, 24, 0.04), 0 1px 3px rgba(17, 20, 24, 0.06)',
+        'card-hover': '0 4px 12px rgba(17, 20, 24, 0.08)',
+        elevated: '0 8px 24px rgba(17, 20, 24, 0.10)',
+      },
+      borderRadius: {
+        lg: '10px',
+        xl: '14px',
+        '2xl': '18px',
       },
       animation: {
         'slide-in-right': 'slideInRight 0.3s ease-out',

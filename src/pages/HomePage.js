@@ -1,225 +1,207 @@
 /**
- * Home Page
- * Landing page with hero section, featured teams, most wanted kits,
- * and customization promo banner.
+ * Home Page — landing page matching the main_screen design mock.
+ * All product imagery comes from the backend (product.images[0]).
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useProducts } from '../hooks/useProducts';
+import { getProductImage } from '../utils/imageUrl';
 
 /**
- * Hero Section - full-width with gradient background.
+ * Stadium hero with green/dark gradient — decorative bg only, no product imagery.
  */
 function HeroSection() {
   return (
-    <section className="hero-section flex items-center justify-center" aria-label="Hero">
-      <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 bg-gold/10 border border-gold/30
-                        rounded-full px-4 py-2 mb-6">
-          <span className="w-2 h-2 bg-gold rounded-full animate-pulse" aria-hidden="true" />
-          <span className="text-gold text-sm font-medium uppercase tracking-widest">
-            World Cup 2026 Official Kits
+    <section className="container-ballers pt-6">
+      <div className="relative overflow-hidden rounded-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0E3A1D] via-[#1F6E3A]/60 to-[#0E3A1D]" aria-hidden="true" />
+        <div className="absolute inset-0 bg-black/30" aria-hidden="true" />
+
+        <div className="relative px-6 sm:px-10 py-14 sm:py-20 text-center">
+          <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/10 backdrop-blur text-white border border-white/20">
+            World Cup 2026
           </span>
-        </div>
-
-        {/* Main heading */}
-        <h1 className="font-bebas text-hero text-white leading-none mb-6">
-          WEAR THE
-          <span className="text-gold block">GAME</span>
-        </h1>
-
-        {/* Subtext */}
-        <p className="text-ballers-muted text-lg md:text-xl mb-10 max-w-2xl mx-auto">
-          Official replica kits for all 48 nations competing in the 2026 FIFA World Cup.
-          Customize with your name and number.
-        </p>
-
-        {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/products" className="btn-primary text-lg px-8 py-4">
-            Shop World Cup Kits
-          </Link>
-          <Link to="/teams" className="btn-secondary text-lg px-8 py-4">
-            Browse Teams
-          </Link>
-        </div>
-
-        {/* Trust badges */}
-        <div className="flex flex-wrap justify-center gap-6 mt-12">
-          {[
-            { icon: '🏆', text: 'Official Replica' },
-            { icon: '⚽', text: 'WC 2026 Licensed' },
-            { icon: '✂️', text: 'Custom Name & Number' },
-            { icon: '🚚', text: 'Free Shipping' },
-          ].map((badge) => (
-            <div key={badge.text} className="flex items-center gap-2 text-ballers-muted text-sm">
-              <span aria-hidden="true">{badge.icon}</span>
-              <span>{badge.text}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
- * Featured Teams horizontal scroll section.
- */
-function FeaturedTeams() {
-  // Placeholder teams - will be replaced with API data in task 5
-  const teams = [
-    { id: '1', name: 'Brazil', code: 'BRA', flag: '🇧🇷' },
-    { id: '2', name: 'Argentina', code: 'ARG', flag: '🇦🇷' },
-    { id: '3', name: 'France', code: 'FRA', flag: '🇫🇷' },
-    { id: '4', name: 'England', code: 'ENG', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
-    { id: '5', name: 'Germany', code: 'GER', flag: '🇩🇪' },
-    { id: '6', name: 'Spain', code: 'ESP', flag: '🇪🇸' },
-    { id: '7', name: 'Portugal', code: 'POR', flag: '🇵🇹' },
-    { id: '8', name: 'Netherlands', code: 'NED', flag: '🇳🇱' },
-    { id: '9', name: 'Italy', code: 'ITA', flag: '🇮🇹' },
-    { id: '10', name: 'USA', code: 'USA', flag: '🇺🇸' },
-  ];
-
-  return (
-    <section className="py-16 bg-navy" aria-label="Featured teams">
-      <div className="container-ballers">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="font-bebas text-section text-white">FEATURED TEAMS</h2>
-          <Link
-            to="/teams"
-            className="text-gold text-sm font-medium uppercase tracking-widest
-                       hover:text-gold-hover transition-colors"
-          >
-            View All →
-          </Link>
-        </div>
-
-        {/* Horizontal scroll container */}
-        <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 -mx-4 px-4">
-          {teams.map((team) => (
-            <Link
-              key={team.id}
-              to={`/products/${team.id}`}
-              className="flex-shrink-0 flex flex-col items-center gap-2 p-4
-                         bg-navy-surface border border-ballers-border rounded-xl
-                         hover:border-gold hover:shadow-[0_4px_20px_rgba(232,197,71,0.15)]
-                         transition-all duration-200 w-24"
-              aria-label={`${team.name} kits`}
-            >
-              <span className="text-3xl" aria-hidden="true">{team.flag}</span>
-              <span className="font-bebas text-sm text-white tracking-wider">{team.code}</span>
+          <h1 className="mt-4 text-display text-3xl sm:text-5xl text-white">
+            GEAR UP FOR THE WORLD CUP
+          </h1>
+          <p className="mt-3 text-white/85 max-w-2xl mx-auto text-sm sm:text-base">
+            Official replica kits for every nation. Customize your favorite with your name and number.
+          </p>
+          <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link to="/teams" className="btn-primary px-6 py-3">
+              Shop National Teams
             </Link>
-          ))}
+            <Link
+              to="/products"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-white border border-white/40 hover:bg-white/10 transition-colors"
+            >
+              View Custom
+            </Link>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
+const NATION_BG = ['bg-yellow-300', 'bg-sky-200', 'bg-blue-300'];
+
 /**
- * Most Wanted Kits section - product grid placeholder.
+ * Three featured products as "Represent Your Nation" cards.
  */
-function MostWantedKits() {
-  // Skeleton placeholders - will be replaced with real products in task 5
-  const skeletonItems = Array.from({ length: 4 }, (_, i) => i);
+function RepresentYourNation({ products, loading }) {
+  const featured = (products || []).slice(0, 3);
 
   return (
-    <section className="py-16 bg-navy-surface" aria-label="Most wanted kits">
-      <div className="container-ballers">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="font-bebas text-section text-white">MOST WANTED KITS</h2>
-            <p className="text-ballers-muted text-sm mt-1">The kits everyone's talking about</p>
-          </div>
-          <Link
-            to="/products"
-            className="text-gold text-sm font-medium uppercase tracking-widest
-                       hover:text-gold-hover transition-colors"
-          >
-            Shop All →
-          </Link>
-        </div>
+    <section className="container-ballers py-14">
+      <div className="flex items-end justify-between mb-6">
+        <h2 className="text-display text-2xl sm:text-3xl text-ink">REPRESENT YOUR NATION</h2>
+        <Link to="/teams" className="text-sm text-brand font-semibold hover:underline">
+          View All Teams →
+        </Link>
+      </div>
 
-        {/* Product grid - skeleton state */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {skeletonItems.map((i) => (
-            <div key={i} className="card p-0 overflow-hidden">
-              {/* Image skeleton */}
-              <div className="skeleton aspect-[3/4] w-full" aria-hidden="true" />
-              {/* Content skeleton */}
-              <div className="p-4 space-y-3">
-                <div className="skeleton h-4 w-3/4 rounded" aria-hidden="true" />
-                <div className="skeleton h-3 w-1/2 rounded" aria-hidden="true" />
-                <div className="skeleton h-5 w-1/3 rounded" aria-hidden="true" />
-                <div className="skeleton h-10 w-full rounded-md" aria-hidden="true" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {loading
+          ? [0, 1, 2].map((i) => (
+              <div key={i} className="aspect-[4/5] rounded-xl skeleton" aria-hidden="true" />
+            ))
+          : featured.length === 0
+          ? (
+            <p className="col-span-full text-sm text-ink-muted">No products available.</p>
+          )
+          : featured.map((p, i) => {
+              const img = getProductImage(p);
+              const id = p._id || p.id;
+              const teamName =
+                (typeof p.team === 'object' && p.team?.name) ||
+                p.teamName ||
+                p.name;
+              return (
+                <Link
+                  key={id}
+                  to={`/product/${id}`}
+                  className={`group relative aspect-[4/5] rounded-xl overflow-hidden ${NATION_BG[i % NATION_BG.length]}`}
+                >
+                  {img && (
+                    <img
+                      src={img}
+                      alt={p.name || teamName}
+                      className="absolute inset-0 w-full h-full object-cover mix-blend-multiply opacity-90 group-hover:scale-[1.03] transition-transform duration-500"
+                      loading="lazy"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black/70 to-transparent">
+                    <h3 className="text-white font-semibold text-lg">{teamName}</h3>
+                  </div>
+                </Link>
+              );
+            })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Trending Kits — first product becomes the featured large card,
+ * the next two stack on the right.
+ */
+function TrendingKits({ products, loading }) {
+  const featured = products?.[0];
+  const others = (products || []).slice(1, 3);
+
+  return (
+    <section className="container-ballers pb-16">
+      <h2 className="text-display text-2xl sm:text-3xl text-ink text-center mb-8">TRENDING KITS</h2>
+
+      {loading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="card aspect-[2/1] skeleton" aria-hidden="true" />
+          <div className="grid grid-rows-2 gap-5">
+            <div className="card skeleton h-32" aria-hidden="true" />
+            <div className="card skeleton h-32" aria-hidden="true" />
+          </div>
+        </div>
+      ) : !featured ? (
+        <p className="text-center text-sm text-ink-muted">No products available.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Featured */}
+          <Link
+            to={`/product/${featured._id || featured.id}`}
+            className="card overflow-hidden group flex flex-col sm:flex-row hover:shadow-card-hover transition-shadow"
+          >
+            <div className="relative sm:w-1/2 aspect-[4/5] sm:aspect-auto bg-surface-sunken">
+              {getProductImage(featured) && (
+                <img
+                  src={getProductImage(featured)}
+                  alt={featured.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              )}
+            </div>
+            <div className="flex-1 p-6 flex flex-col">
+              <h3 className="font-semibold text-lg text-ink">{featured.name}</h3>
+              <p className="mt-2 text-sm text-ink-muted leading-relaxed line-clamp-3">
+                {featured.description || 'Engineered for peak performance and crafted from premium materials.'}
+              </p>
+              <div className="mt-auto pt-6 flex items-center justify-between">
+                <span className="text-2xl font-bold text-ink">${Number(featured.price ?? 0).toFixed(2)}</span>
+                <span className="w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center group-hover:bg-brand-dark transition-colors" aria-hidden="true">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 5l7 7-7 7" />
+                  </svg>
+                </span>
               </div>
             </div>
-          ))}
-        </div>
-
-        <p className="text-center text-ballers-muted text-sm mt-8">
-          Products will load once the backend is connected.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-/**
- * Customization promo banner.
- */
-function CustomizationBanner() {
-  return (
-    <section
-      className="py-20 bg-gradient-to-r from-navy to-navy-deep relative overflow-hidden"
-      aria-label="Customization promotion"
-    >
-      {/* Background decoration */}
-      <div
-        className="absolute inset-0 opacity-5"
-        style={{
-          backgroundImage: 'repeating-linear-gradient(45deg, #E8C547 0, #E8C547 1px, transparent 0, transparent 50%)',
-          backgroundSize: '20px 20px',
-        }}
-        aria-hidden="true"
-      />
-
-      <div className="container-ballers relative z-10 text-center">
-        <div className="max-w-2xl mx-auto">
-          {/* Jersey number preview */}
-          <div className="jersey-preview inline-block mb-8">
-            <div className="jersey-number">10</div>
-            <div className="text-white font-bold text-xl tracking-widest mt-2">YOUR NAME</div>
-          </div>
-
-          <h2 className="font-bebas text-section text-white mb-4">
-            MAKE IT YOURS
-          </h2>
-          <p className="text-ballers-muted text-lg mb-8">
-            Add your name and number to any kit. Live preview as you customize.
-            Official printing, delivered to your door.
-          </p>
-
-          <Link to="/products" className="btn-primary text-lg px-10 py-4">
-            Customize Now
           </Link>
+
+          {/* Stacked smaller */}
+          <div className="grid grid-rows-2 gap-5">
+            {others.map((p) => {
+              const img = getProductImage(p);
+              return (
+                <Link
+                  key={p._id || p.id}
+                  to={`/product/${p._id || p.id}`}
+                  className="card overflow-hidden group flex hover:shadow-card-hover transition-shadow"
+                >
+                  <div className="w-32 sm:w-40 aspect-square bg-surface-sunken flex-shrink-0 relative">
+                    {img && (
+                      <img
+                        src={img}
+                        alt={p.name}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1 p-4 flex flex-col justify-center">
+                    <h3 className="font-semibold text-ink text-base">{p.name}</h3>
+                    <span className="mt-2 text-lg font-bold text-ink">${Number(p.price ?? 0).toFixed(2)}</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }
 
-/**
- * Home Page - main component.
- */
 function HomePage() {
+  const { products, loading } = useProducts({ limit: 6 });
+
   return (
-    <div className="page-enter">
+    <div className="page-enter bg-surface-muted min-h-screen">
       <HeroSection />
-      <FeaturedTeams />
-      <MostWantedKits />
-      <CustomizationBanner />
+      <RepresentYourNation products={products} loading={loading} />
+      <TrendingKits products={products} loading={loading} />
     </div>
   );
 }

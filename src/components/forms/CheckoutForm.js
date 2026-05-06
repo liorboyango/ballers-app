@@ -19,9 +19,8 @@ import api from '../../services/api';
  */
 export default function CheckoutForm({ onOrderSuccess }) {
   const navigate = useNavigate();
-  const { cart, clearCart } = useCart();
+  const { clearCart } = useCart();
   const [serverError, setServerError] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card');
 
   const {
     register,
@@ -53,7 +52,6 @@ export default function CheckoutForm({ onOrderSuccess }) {
   const watchedPayment = watch('paymentMethod', 'card');
 
   const handlePaymentMethodChange = (method) => {
-    setPaymentMethod(method);
     setValue('paymentMethod', method, { shouldValidate: true });
   };
 

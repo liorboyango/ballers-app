@@ -25,7 +25,8 @@ export const useProducts = (initialParams = {}) => {
       setProducts(result.data || []);
       setPagination(result.pagination || null);
     } catch (err) {
-      setError(err.message || 'Failed to load products');
+      const msg = typeof err?.message === 'string' ? err.message : 'Failed to load products';
+      setError(msg);
       setProducts([]);
     } finally {
       setLoading(false);
@@ -67,7 +68,8 @@ export const useProduct = (id) => {
       const result = await getProductById(id);
       setProduct(result.data || null);
     } catch (err) {
-      setError(err.message || 'Failed to load product');
+      const msg = typeof err?.message === 'string' ? err.message : 'Failed to load product';
+      setError(msg);
       setProduct(null);
     } finally {
       setLoading(false);

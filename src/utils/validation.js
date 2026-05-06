@@ -64,7 +64,7 @@ export const checkoutSchema = z.object({
     .string()
     .optional()
     .refine(
-      (val) => !val || /^[\+]?[\d\s\-\(\)]{7,20}$/.test(val),
+      (val) => !val || /^[+]?[\d\s\-()]{7,20}$/.test(val),
       'Please enter a valid phone number'
     ),
   address: z

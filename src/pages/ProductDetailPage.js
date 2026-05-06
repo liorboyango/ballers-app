@@ -1,144 +1,126 @@
 /**
- * Product Detail Page
- * Shows full product details with image gallery, customization form,
- * size selector, and add-to-cart functionality.
+ * Product Detail Page — matches shop_screen design.
+ * Product data and imagery come from the backend via useProduct(id) and
+ * a "Complete the Kit" row from useProducts.
  */
 import React, { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useProduct, useProducts } from '../hooks/useProducts';
+import { getProductImage, getProductImages } from '../utils/imageUrl';
 import { SIZES } from '../utils/constants';
 
-/**
- * Tab component for product description section.
- */
-function ProductTabs() {
-  const [activeTab, setActiveTab] = useState('details');
-
-  const tabs = [
-    { id: 'details', label: 'Details' },
-    { id: 'size-guide', label: 'Size Guide' },
-    { id: 'reviews', label: 'Reviews' },
-  ];
-
-  const content = {
-    details: (
-      <div className="text-ballers-muted text-sm leading-relaxed space-y-4">
-        <p>
-          Official replica kit for the 2026 FIFA World Cup. Made with high-performance
-          moisture-wicking fabric for maximum comfort on and off the pitch.
-        </p>
-        <ul className="list-disc list-inside space-y-2">
-          <li>100% Polyester performance fabric</li>
-          <li>Official World Cup 2026 licensed product</li>
-          <li>Authentic team badge and sponsor logos</li>
-          <li>Machine washable at 30°C</li>
-          <li>Available in sizes XS to XXL</li>
-        </ul>
-      </div>
-    ),
-    'size-guide': (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-ballers-muted">
-          <thead>
-            <tr className="border-b border-ballers-border">
-              <th className="text-left py-2 pr-4 text-white">Size</th>
-              <th className="text-left py-2 pr-4">Chest (cm)</th>
-              <th className="text-left py-2 pr-4">Length (cm)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[['XS', '86-91', '68'], ['S', '91-96', '70'], ['M', '96-101', '72'],
-              ['L', '101-106', '74'], ['XL', '106-111', '76'], ['XXL', '111-116', '78']].map(([size, chest, length]) => (
-              <tr key={size} className="border-b border-ballers-border/50">
-                <td className="py-2 pr-4 text-white font-medium">{size}</td>
-                <td className="py-2 pr-4">{chest}</td>
-                <td className="py-2 pr-4">{length}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ),
-    reviews: (
-      <div className="text-ballers-muted text-sm">
-        <p>No reviews yet. Be the first to review this product!</p>
-      </div>
-    ),
-  };
+function CompleteTheKit({ excludeId }) {
+  const { products, loading } = useProducts({ limit: 4 });
+  const list = (products || []).filter((p) => (p._id || p.id) !== excludeId).slice(0, 3);
 
   return (
-    <div className="mt-12">
-      {/* Tab buttons */}
-      <div className="flex border-b border-ballers-border" role="tablist">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-6 py-3 text-sm font-medium uppercase tracking-wider
-                        transition-colors duration-200 border-b-2 -mb-px ${
-              activeTab === tab.id
-                ? 'text-gold border-gold'
-                : 'text-ballers-muted border-transparent hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+    <section className="mt-16">
+      <h2 className="text-display text-2xl text-ink mb-5">Complete the Kit</h2>
 
-      {/* Tab content */}
-      <div className="py-6" role="tabpanel">
-        {content[activeTab]}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="card overflow-hidden">
+              <div className="aspect-square skeleton" />
+              <div className="p-4 space-y-3">
+                <div className="h-4 w-2/3 rounded skeleton" />
+                <div className="h-4 w-1/3 rounded skeleton" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <p className="text-sm text-ink-muted">No related products yet.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          {list.map((r) => {
+            const img = getProductImage(r);
+            const id = r._id || r.id;
+            return (
+              <Link
+                key={id}
+                to={`/product/${id}`}
+                className="card overflow-hidden group hover:shadow-card-hover transition-shadow"
+              >
+                <div className="aspect-square bg-surface-sunken relative">
+                  {img && (
+                    <img
+                      src={img}
+                      alt={r.name}
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
+                      loading="lazy"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
+                </div>
+                <div className="p-4">
+                  <h3 className="font-semibold text-sm text-ink">{r.name}</h3>
+                  <p className="mt-1 font-bold text-ink">${Number(r.price ?? 0).toFixed(0)}</p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+      <div>
+        <div className="aspect-square rounded-xl skeleton" />
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          <div className="aspect-square rounded-lg skeleton" />
+          <div className="aspect-square rounded-lg skeleton" />
+          <div className="aspect-square rounded-lg skeleton" />
+        </div>
+      </div>
+      <div className="card p-6 space-y-4">
+        <div className="h-5 w-32 rounded skeleton" />
+        <div className="h-8 w-2/3 rounded skeleton" />
+        <div className="h-6 w-24 rounded skeleton" />
+        <div className="h-4 w-full rounded skeleton" />
+        <div className="h-4 w-5/6 rounded skeleton" />
+        <div className="h-12 w-full rounded skeleton mt-6" />
       </div>
     </div>
   );
 }
 
-/**
- * Product Detail Page - main component.
- */
 function ProductDetailPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const { addToCart, toggleDrawer } = useCart();
+  const { product, loading, error } = useProduct(id);
+  const { addToCart } = useCart();
 
   const [selectedSize, setSelectedSize] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [customization, setCustomization] = useState({ playerName: '', playerNumber: '' });
   const [activeImage, setActiveImage] = useState(0);
-  const [addedToCart, setAddedToCart] = useState(false);
+  const [personalize, setPersonalize] = useState(false);
+  const [playerName, setPlayerName] = useState('');
+  const [playerNumber, setPlayerNumber] = useState('');
   const [sizeError, setSizeError] = useState('');
+  const [addedToCart, setAddedToCart] = useState(false);
 
-  // Placeholder product data - will be replaced with API data in task 5
-  const product = {
-    _id: id,
-    id,
-    name: 'Brazil Home Kit 2026',
-    teamName: 'Brazil',
-    price: 129.99,
-    description: 'Official Brazil home kit for the 2026 FIFA World Cup.',
-    images: [],
-    sizes: SIZES,
-    isNew: true,
-    kitType: 'home',
-  };
+  const images = product ? getProductImages(product) : [];
+  const sizes = product?.sizes?.length ? product.sizes : SIZES;
 
   const handleAddToCart = () => {
+    if (!product) return;
     if (!selectedSize) {
       setSizeError('Please select a size');
       return;
     }
     setSizeError('');
-
-    addToCart(
-      product,
-      selectedSize,
-      quantity,
-      customization.playerName || customization.playerNumber ? customization : null
-    );
-
+    if (typeof addToCart === 'function') {
+      addToCart(
+        product,
+        selectedSize,
+        1,
+        personalize && (playerName || playerNumber) ? { playerName, playerNumber } : null
+      );
+    }
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
   };
@@ -146,228 +128,155 @@ function ProductDetailPage() {
   return (
     <div className="page-enter min-h-screen">
       <div className="container-ballers py-8">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm text-ballers-muted mb-8" aria-label="Breadcrumb">
-          <Link to="/" className="hover:text-gold transition-colors">Home</Link>
-          <span aria-hidden="true">/</span>
-          <Link to="/teams" className="hover:text-gold transition-colors">Teams</Link>
-          <span aria-hidden="true">/</span>
-          <Link to={`/products/${product.id}`} className="hover:text-gold transition-colors">
-            {product.teamName}
-          </Link>
-          <span aria-hidden="true">/</span>
-          <span className="text-white">{product.name}</span>
+        <nav className="text-xs text-ink-muted mb-6" aria-label="Breadcrumb">
+          <Link to="/" className="hover:text-brand">Home</Link>
+          <span className="mx-2">/</span>
+          <Link to="/products" className="hover:text-brand">Shop</Link>
+          <span className="mx-2">/</span>
+          <span className="text-ink">{product?.name || 'Product'}</span>
         </nav>
 
-        {/* Product layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Left: Image Gallery */}
-          <div>
-            {/* Main image */}
-            <div className="aspect-[4/5] bg-navy-surface border border-ballers-border rounded-xl
-                            flex items-center justify-center overflow-hidden">
-              {product.images[activeImage] ? (
-                <img
-                  src={product.images[activeImage]}
-                  alt={`${product.name} - view ${activeImage + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="text-center">
-                  <span className="text-8xl" aria-hidden="true">👕</span>
-                  <p className="text-ballers-muted text-sm mt-4">Product image coming soon</p>
-                </div>
-              )}
-            </div>
-
-            {/* Thumbnails */}
-            {product.images.length > 1 && (
-              <div className="flex gap-3 mt-4">
-                {product.images.map((img, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setActiveImage(idx)}
-                    className={`w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors ${
-                      activeImage === idx ? 'border-gold' : 'border-ballers-border'
-                    }`}
-                    aria-label={`View image ${idx + 1}`}
-                    aria-pressed={activeImage === idx}
-                  >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right: Product Details */}
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            {/* Badges */}
-            <div className="flex gap-2 mb-4">
-              {product.isNew && <span className="badge-new">NEW</span>}
-              <span className="bg-navy-deep text-ballers-muted text-[10px] font-bold uppercase
-                               px-2 py-0.5 rounded">
-                {product.kitType} kit
-              </span>
-            </div>
-
-            {/* Team & Product name */}
-            <p className="text-ballers-muted text-sm uppercase tracking-widest mb-1">
-              {product.teamName}
+        {error ? (
+          <div className="card p-10 text-center">
+            <p className="text-accent-danger text-sm">
+              {typeof error === 'string' ? error : 'Failed to load product.'}
             </p>
-            <h1 className="font-bebas text-4xl text-white tracking-wider">{product.name}</h1>
-
-            {/* Price */}
-            <p className="text-gold font-bold text-3xl mt-3">${product.price.toFixed(2)}</p>
-
-            {/* Customization */}
-            <div className="jersey-preview mt-6">
-              <h2 className="font-bebas text-xl text-white tracking-wider mb-4">CUSTOMIZE</h2>
-
-              {/* Live preview */}
-              <div className="text-center mb-4 py-4 border-b border-ballers-border">
-                <div className="jersey-number">
-                  {customization.playerNumber || '00'}
-                </div>
-                <div className="text-white font-bold text-lg tracking-widest mt-1">
-                  {customization.playerName || 'YOUR NAME'}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="playerName" className="block text-sm text-ballers-muted mb-1">
-                    Name
-                  </label>
-                  <input
-                    id="playerName"
-                    type="text"
-                    value={customization.playerName}
-                    onChange={(e) => setCustomization(prev => ({
-                      ...prev,
-                      playerName: e.target.value.toUpperCase().slice(0, 20)
-                    }))}
-                    placeholder="e.g. VINI JR"
-                    className="input-field text-sm"
-                    maxLength={20}
-                    aria-label="Player name for jersey"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="playerNumber" className="block text-sm text-ballers-muted mb-1">
-                    Number
-                  </label>
-                  <input
-                    id="playerNumber"
-                    type="number"
-                    value={customization.playerNumber}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '' || (Number(val) >= 1 && Number(val) <= 99)) {
-                        setCustomization(prev => ({ ...prev, playerNumber: val }));
-                      }
-                    }}
-                    placeholder="10"
-                    className="input-field text-sm"
-                    min="1"
-                    max="99"
-                    aria-label="Player number for jersey"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Size selector */}
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-white uppercase tracking-wider text-sm">Size</h2>
-                <button className="text-gold text-xs hover:underline">Size Guide</button>
-              </div>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Select size">
-                {SIZES.map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => { setSelectedSize(size); setSizeError(''); }}
-                    className={`size-btn ${
-                      selectedSize === size ? 'size-btn-selected' : ''
-                    }`}
-                    aria-pressed={selectedSize === size}
-                    aria-label={`Size ${size}`}
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
-              {sizeError && (
-                <p className="text-ballers-red text-sm mt-2" role="alert">{sizeError}</p>
-              )}
-            </div>
-
-            {/* Quantity */}
-            <div className="mt-6">
-              <h2 className="font-semibold text-white uppercase tracking-wider text-sm mb-3">
-                Quantity
-              </h2>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="w-10 h-10 border border-ballers-border rounded-lg text-white
-                             hover:border-gold hover:text-gold transition-colors flex items-center justify-center"
-                  aria-label="Decrease quantity"
-                >
-                  −
-                </button>
-                <span className="text-white font-medium w-8 text-center" aria-live="polite">
-                  {quantity}
-                </span>
-                <button
-                  onClick={() => setQuantity(quantity + 1)}
-                  className="w-10 h-10 border border-ballers-border rounded-lg text-white
-                             hover:border-gold hover:text-gold transition-colors flex items-center justify-center"
-                  aria-label="Increase quantity"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex flex-col gap-3 mt-8">
-              <button
-                onClick={handleAddToCart}
-                className={`btn-primary w-full text-lg py-4 ${
-                  addedToCart ? 'bg-ballers-success' : ''
-                }`}
-                aria-label="Add to cart"
-              >
-                {addedToCart ? '✓ Added to Cart!' : 'ADD TO CART'}
-              </button>
-              <button
-                className="btn-secondary w-full text-lg py-4"
-                aria-label="Add to wishlist"
-              >
-                ♡ WISHLIST
-              </button>
-            </div>
-
-            {/* Trust badges */}
-            <div className="flex flex-wrap gap-4 mt-6 pt-6 border-t border-ballers-border">
-              {[
-                { icon: '🏆', text: 'Official Replica' },
-                { icon: '🚚', text: 'Free Shipping' },
-                { icon: '↩️', text: '30-Day Returns' },
-              ].map((badge) => (
-                <div key={badge.text} className="flex items-center gap-2 text-ballers-muted text-xs">
-                  <span aria-hidden="true">{badge.icon}</span>
-                  <span>{badge.text}</span>
-                </div>
-              ))}
-            </div>
+            <Link to="/products" className="btn-secondary mt-4">Back to Shop</Link>
           </div>
-        </div>
+        ) : loading || !product ? (
+          <DetailSkeleton />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              {/* Gallery */}
+              <div>
+                <div className="aspect-square rounded-xl overflow-hidden bg-surface-sunken flex items-center justify-center">
+                  {images[activeImage] ? (
+                    <img
+                      src={images[activeImage]}
+                      alt={`${product.name} - view ${activeImage + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <span className="text-7xl" aria-hidden="true">👕</span>
+                  )}
+                </div>
+                {images.length > 1 && (
+                  <div className="grid grid-cols-3 gap-3 mt-3">
+                    {images.map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveImage(idx)}
+                        className={`aspect-square rounded-lg overflow-hidden border-2 transition-colors flex items-center justify-center bg-surface-sunken ${
+                          activeImage === idx ? 'border-brand' : 'border-line hover:border-ink-faint'
+                        }`}
+                        aria-label={`View image ${idx + 1}`}
+                        aria-pressed={activeImage === idx}
+                      >
+                        <img
+                          src={img}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-        {/* Product tabs */}
-        <ProductTabs />
+              {/* Details */}
+              <div className="card p-6 lg:p-8">
+                {product.kitType && (
+                  <span className="badge-edition">{product.kitType.toUpperCase()} KIT</span>
+                )}
+                <h1 className="text-display text-3xl text-ink mt-3">{product.name}</h1>
+                <p className="text-2xl font-bold text-ink mt-2">${Number(product.price ?? 0).toFixed(2)}</p>
+
+                {product.description && (
+                  <p className="text-sm text-ink-muted leading-relaxed mt-4">
+                    {product.description}
+                  </p>
+                )}
+
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-sm font-semibold text-ink">Select Size</h2>
+                    <button className="text-xs text-brand hover:underline">Size Guide</button>
+                  </div>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Select size">
+                    {sizes.map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => { setSelectedSize(size); setSizeError(''); }}
+                        className={`size-btn ${selectedSize === size ? 'size-btn-selected' : ''}`}
+                        aria-pressed={selectedSize === size}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                  {sizeError && (
+                    <p className="text-accent-danger text-xs mt-2" role="alert">{sizeError}</p>
+                  )}
+                </div>
+
+                <div className="mt-6 border-t border-line pt-5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={personalize}
+                      onChange={(e) => setPersonalize(e.target.checked)}
+                      className="w-4 h-4 rounded border-line text-brand focus:ring-brand/40"
+                    />
+                    <span className="text-sm font-semibold text-ink">Personalize</span>
+                    <span className="text-xs text-ink-muted">Add a name & number to make it your own (+$15)</span>
+                  </label>
+
+                  {personalize && (
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <input
+                        type="text"
+                        value={playerName}
+                        onChange={(e) => setPlayerName(e.target.value.toUpperCase().slice(0, 20))}
+                        placeholder="Name"
+                        className="input-field text-sm"
+                        aria-label="Player name"
+                      />
+                      <input
+                        type="number"
+                        value={playerNumber}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === '' || (Number(v) >= 1 && Number(v) <= 99)) setPlayerNumber(v);
+                        }}
+                        placeholder="Number"
+                        min="1"
+                        max="99"
+                        className="input-field text-sm"
+                        aria-label="Player number"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleAddToCart}
+                  className={`btn-primary w-full mt-6 text-base py-4 ${addedToCart ? 'bg-brand-dark' : ''}`}
+                  aria-label="Add to cart"
+                >
+                  {addedToCart ? '✓ Added to Cart' : `Add to Cart — $${Number(product.price ?? 0).toFixed(2)}`}
+                </button>
+                <p className="text-center text-xs text-ink-muted mt-3">
+                  <span aria-hidden="true">🚚</span> Free shipping on orders over $100
+                </p>
+              </div>
+            </div>
+
+            <CompleteTheKit excludeId={product._id || product.id} />
+          </>
+        )}
       </div>
     </div>
   );

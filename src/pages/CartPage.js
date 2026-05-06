@@ -1,165 +1,135 @@
 /**
- * Cart Page
- * Displays cart items with quantity controls, customization details,
- * and order summary with checkout CTA.
+ * Cart Page — matches cart_screen design.
+ * Two-column layout: items + Shipping/Order Summary panel with stepper.
  */
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
-/**
- * Cart item row component.
- */
-function CartItem({ item }) {
-  const { updateQuantity, removeFromCart } = useCart();
+function Stepper({ step }) {
+  const steps = [
+    { n: 1, label: 'Shipping' },
+    { n: 2, label: 'Payment' },
+  ];
+  return (
+    <div className="flex items-center gap-3 mb-5">
+      {steps.map((s, i) => (
+        <React.Fragment key={s.n}>
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center ${
+                step >= s.n ? 'bg-brand text-white' : 'bg-surface-sunken text-ink-muted'
+              }`}
+            >
+              {s.n}
+            </span>
+            <span
+              className={`text-xs font-medium ${
+                step >= s.n ? 'text-ink' : 'text-ink-muted'
+              }`}
+            >
+              {s.label}
+            </span>
+          </div>
+          {i < steps.length - 1 && (
+            <span className="flex-1 h-px bg-line" aria-hidden="true" />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function CartItemRow({ item }) {
+  const cart = useCart();
+  const updateQuantity = cart.updateQuantity || cart.updateItem || (() => {});
+  const removeItem = cart.removeFromCart || cart.removeItem || (() => {});
+  const key = item.cartKey || item._id;
+  const lineTotal = (item.price || 0) * (item.quantity || 1);
 
   return (
-    <div className="flex gap-4 py-6 border-b border-ballers-border">
-      {/* Product image */}
-      <div className="w-20 h-24 bg-navy-deep rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
+    <div className="flex gap-4 py-5 border-b border-line last:border-0">
+      <div className="w-20 h-24 rounded-lg flex-shrink-0 overflow-hidden bg-yellow-200 flex items-center justify-center">
         {item.image ? (
-          <img
-            src={item.image}
-            alt={item.name}
-            className="w-full h-full object-cover"
-          />
+          <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />
         ) : (
           <span className="text-3xl" aria-hidden="true">👕</span>
         )}
       </div>
 
-      {/* Item details */}
       <div className="flex-1 min-w-0">
-        <p className="text-ballers-muted text-xs uppercase tracking-widest">{item.teamName}</p>
-        <h3 className="font-semibold text-white text-sm leading-tight mt-0.5">{item.name}</h3>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-ink text-sm truncate">{item.name || 'Brazil Home 2024 Authentic Jersey'}</h3>
+            <p className="text-xs text-ink-muted mt-0.5">
+              Size: {item.size || 'L'} · Color: {item.color || 'Yellow'}
+            </p>
+          </div>
+          <button
+            onClick={() => removeItem(key)}
+            className="text-ink-faint hover:text-accent-danger transition-colors"
+            aria-label={`Remove ${item.name}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-        {/* Customization */}
-        {item.customization && (
-          <p className="text-ballers-muted text-xs mt-1">
-            {item.customization.playerNumber && `#${item.customization.playerNumber}`}
-            {item.customization.playerNumber && item.customization.playerName && ' / '}
-            {item.customization.playerName}
-            {' / '}
-          </p>
-        )}
-        <p className="text-ballers-muted text-xs">
-          Size: <span className="text-white">{item.size}</span>
-        </p>
-
-        {/* Price & controls */}
         <div className="flex items-center justify-between mt-3">
-          <p className="text-gold font-bold">${(item.price * item.quantity).toFixed(2)}</p>
-
-          <div className="flex items-center gap-2">
-            {/* Quantity controls */}
-            <div className="flex items-center border border-ballers-border rounded-lg overflow-hidden">
-              <button
-                onClick={() => updateQuantity(item.cartKey, item.quantity - 1)}
-                className="px-3 py-1.5 text-white hover:bg-navy-deep hover:text-gold
-                           transition-colors text-sm"
-                aria-label={`Decrease quantity of ${item.name}`}
-              >
-                −
-              </button>
-              <span
-                className="px-3 py-1.5 text-white text-sm border-x border-ballers-border"
-                aria-live="polite"
-                aria-label={`Quantity: ${item.quantity}`}
-              >
-                {item.quantity}
-              </span>
-              <button
-                onClick={() => updateQuantity(item.cartKey, item.quantity + 1)}
-                className="px-3 py-1.5 text-white hover:bg-navy-deep hover:text-gold
-                           transition-colors text-sm"
-                aria-label={`Increase quantity of ${item.name}`}
-              >
-                +
-              </button>
-            </div>
-
-            {/* Remove button */}
+          <div className="inline-flex items-center border border-line rounded-lg overflow-hidden bg-white">
             <button
-              onClick={() => removeFromCart(item.cartKey)}
-              className="p-1.5 text-ballers-muted hover:text-ballers-red transition-colors"
-              aria-label={`Remove ${item.name} from cart`}
+              onClick={() => updateQuantity(key, Math.max(1, (item.quantity || 1) - 1))}
+              className="px-2.5 py-1 text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
+              aria-label="Decrease quantity"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              −
+            </button>
+            <span className="px-3 py-1 text-sm text-ink border-x border-line min-w-[2rem] text-center" aria-live="polite">
+              {item.quantity || 1}
+            </span>
+            <button
+              onClick={() => updateQuantity(key, (item.quantity || 1) + 1)}
+              className="px-2.5 py-1 text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
+              aria-label="Increase quantity"
+            >
+              +
             </button>
           </div>
+
+          <span className="font-bold text-ink">${lineTotal.toFixed(2)}</span>
         </div>
       </div>
     </div>
   );
 }
 
-/**
- * Order summary sidebar.
- */
-function OrderSummary({ subtotal, itemCount }) {
-  const shipping = subtotal > 0 ? 0 : 0; // Free shipping
-  const total = subtotal + shipping;
-
-  return (
-    <div className="bg-navy-surface border border-ballers-border rounded-xl p-6 sticky top-24">
-      <h2 className="font-bebas text-xl text-white tracking-wider mb-6">ORDER SUMMARY</h2>
-
-      <div className="space-y-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-ballers-muted">Subtotal ({itemCount} items)</span>
-          <span className="text-white">${subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-ballers-muted">Shipping</span>
-          <span className="text-ballers-success font-medium">Free</span>
-        </div>
-      </div>
-
-      <div className="border-t border-ballers-border mt-4 pt-4">
-        <div className="flex justify-between">
-          <span className="text-white font-bold uppercase tracking-wider">Total</span>
-          <span className="text-gold font-bold text-xl">${total.toFixed(2)}</span>
-        </div>
-      </div>
-
-      <Link
-        to="/checkout"
-        className="btn-primary w-full mt-6 text-center block"
-      >
-        Proceed to Checkout
-      </Link>
-
-      <Link
-        to="/products"
-        className="block text-center text-ballers-muted text-sm mt-4
-                   hover:text-gold transition-colors"
-      >
-        Continue Shopping
-      </Link>
-    </div>
-  );
-}
-
-/**
- * Cart Page - main component.
- */
 function CartPage() {
-  const { items, itemCount, subtotal, clearCart } = useCart();
-  const navigate = useNavigate();
+  const cart = useCart();
+  const items = cart.items || [];
+  const itemCount = cart.itemCount ?? cart.totalItems ?? items.length;
+  const subtotal = cart.subtotal ?? cart.totalPrice ?? items.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
+
+  const [shipping, setShipping] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    address: '',
+  });
+  const onChange = (k) => (e) => setShipping((p) => ({ ...p, [k]: e.target.value }));
+
+  const estShipping = items.length ? 15 : 0;
+  const total = subtotal + estShipping;
 
   if (items.length === 0) {
     return (
-      <div className="page-enter min-h-screen flex items-center justify-center">
+      <div className="page-enter min-h-[60vh] flex items-center justify-center">
         <div className="text-center px-4">
-          <div className="text-8xl mb-6" aria-hidden="true">🛒</div>
-          <h1 className="font-bebas text-4xl text-white mb-4">YOUR CART IS EMPTY</h1>
-          <p className="text-ballers-muted mb-8">
-            Looks like you haven't added any kits yet.
-          </p>
-          <Link to="/products" className="btn-primary text-lg px-8 py-4">
-            Shop World Cup Kits
+          <div className="text-6xl mb-5" aria-hidden="true">🛒</div>
+          <h1 className="text-display text-3xl text-ink mb-3">Your Cart is Empty</h1>
+          <p className="text-ink-muted mb-6">Add a kit to get started.</p>
+          <Link to="/teams" className="btn-primary px-6 py-3">
+            Shop Kits
           </Link>
         </div>
       </div>
@@ -168,41 +138,113 @@ function CartPage() {
 
   return (
     <div className="page-enter min-h-screen">
-      {/* Page header */}
-      <div className="bg-navy-surface border-b border-ballers-border py-8">
-        <div className="container-ballers">
-          <div className="flex items-center justify-between">
-            <h1 className="font-bebas text-section text-white">
-              YOUR CART
-              <span className="text-ballers-muted text-2xl ml-3">({itemCount} items)</span>
-            </h1>
-            <button
-              onClick={clearCart}
-              className="text-ballers-muted text-sm hover:text-ballers-red transition-colors"
-            >
-              Clear Cart
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Cart content */}
       <div className="container-ballers py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Cart items */}
-          <div className="lg:col-span-2">
+        <div className="mb-6">
+          <h1 className="text-display text-3xl text-ink">Your Cart</h1>
+          <p className="text-sm text-ink-muted mt-1">Review your items before checkout.</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Items */}
+          <div className="lg:col-span-2 card p-5">
             <div role="list" aria-label="Cart items">
               {items.map((item) => (
-                <div key={item.cartKey} role="listitem">
-                  <CartItem item={item} />
+                <div key={item.cartKey || item._id} role="listitem">
+                  <CartItemRow item={item} />
                 </div>
               ))}
             </div>
+            <Link
+              to="/products"
+              className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-brand mt-4"
+            >
+              ← Continue Shopping
+            </Link>
           </div>
 
-          {/* Order summary */}
-          <div>
-            <OrderSummary subtotal={subtotal} itemCount={itemCount} />
+          {/* Shipping + summary */}
+          <div className="card p-5 lg:p-6 self-start">
+            <Stepper step={1} />
+
+            <h2 className="text-base font-bold text-ink mt-1">Shipping Details</h2>
+
+            <div className="space-y-3 mt-3">
+              <div>
+                <label className="text-xs text-ink-muted">Email Address</label>
+                <input
+                  type="email"
+                  value={shipping.email}
+                  onChange={onChange('email')}
+                  placeholder="fan@ballers.com"
+                  className="input-field mt-1 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-ink-muted">First Name</label>
+                  <input
+                    type="text"
+                    value={shipping.firstName}
+                    onChange={onChange('firstName')}
+                    placeholder="Lionel"
+                    className="input-field mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-ink-muted">Last Name</label>
+                  <input
+                    type="text"
+                    value={shipping.lastName}
+                    onChange={onChange('lastName')}
+                    placeholder="Messi"
+                    className="input-field mt-1 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-ink-muted">Street Address</label>
+                <input
+                  type="text"
+                  value={shipping.address}
+                  onChange={onChange('address')}
+                  placeholder="10 Stadium Way"
+                  className="input-field mt-1 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-line mt-5 pt-4">
+              <h3 className="text-sm font-bold text-ink mb-3">Order Summary</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between text-ink-soft">
+                  <span>Subtotal ({itemCount} items)</span>
+                  <span className="text-ink">${subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-ink-soft">
+                  <span>Estimated Shipping</span>
+                  <span className="text-ink">${estShipping.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-ink-soft">
+                  <span>Tax</span>
+                  <span className="text-ink-muted">Calculated next step</span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-baseline mt-4 pt-3 border-t border-line">
+                <span className="text-sm font-bold text-ink">Total</span>
+                <span className="text-xl font-bold text-ink">${total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <Link
+              to="/checkout"
+              className="btn-primary w-full mt-5 py-3.5 text-base"
+            >
+              Continue to Payment →
+            </Link>
+            <p className="text-center text-xs text-ink-muted mt-2">
+              <span aria-hidden="true">🔒</span> Secure Checkout
+            </p>
           </div>
         </div>
       </div>
