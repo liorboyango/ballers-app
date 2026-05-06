@@ -6,7 +6,7 @@
 export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 /** Available jersey sizes */
-export const JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+export const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
 /** Kit types */
 export const KIT_TYPES = [

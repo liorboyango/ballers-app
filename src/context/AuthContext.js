@@ -3,10 +3,22 @@
  * Provides authentication state and actions throughout the app.
  * Handles JWT token storage, user session, and auth API calls.
  */
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { login as loginApi, register as registerApi, getMe } from '../services/authApi';
 
 export const AuthContext = createContext(null);
+
+/**
+ * Hook to access auth state and actions.
+ * Must be used within an AuthProvider.
+ */
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
 /**
  * AuthProvider component
