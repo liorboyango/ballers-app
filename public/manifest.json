@@ -1,19 +1,57 @@
 {
   "name": "Ballers - World Cup Kits",
   "short_name": "Ballers",
-  "description": "Official World Cup 2026 Soccer Kit Store",
+  "description": "Official replica World Cup 2026 soccer kits with custom number and name personalization.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
   "theme_color": "#1A1A2E",
   "background_color": "#1A1A2E",
-  "display": "standalone",
-  "start_url": "/",
   "scope": "/",
-  "orientation": "portrait-primary",
+  "lang": "en",
+  "categories": ["shopping", "sports"],
   "icons": [
+    {
+      "src": "/icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
@@ -22,5 +60,27 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["shopping", "sports"]
+  "shortcuts": [
+    {
+      "name": "Shop Kits",
+      "short_name": "Shop",
+      "description": "Browse World Cup soccer kits",
+      "url": "/products",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "View Teams",
+      "short_name": "Teams",
+      "description": "Browse World Cup 2026 teams",
+      "url": "/teams",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "My Cart",
+      "short_name": "Cart",
+      "description": "View your shopping cart",
+      "url": "/cart",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    }
+  ]
 }
