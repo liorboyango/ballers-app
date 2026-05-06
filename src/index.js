@@ -1,6 +1,6 @@
 /**
- * Ballers App - Entry Point
- * Renders the React app and registers the PWA service worker.
+ * Application entry point
+ * Renders the React app and registers the service worker for PWA support.
  */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -16,16 +16,8 @@ root.render(
   </React.StrictMode>
 );
 
-// Register service worker for PWA support
-// Change register() to unregister() to disable PWA
-serviceWorkerRegistration.register({
-  onSuccess: (registration) => {
-    console.log('[SW] Service worker registered successfully:', registration);
-  },
-  onUpdate: (registration) => {
-    console.log('[SW] New content available, please refresh:', registration);
-  },
-});
+// Register service worker for PWA offline support
+serviceWorkerRegistration.register();
 
 // Report web vitals for performance monitoring
 reportWebVitals();

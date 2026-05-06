@@ -1,5 +1,5 @@
 /**
- * Report Web Vitals for performance monitoring.
+ * Web Vitals reporting
  */
 const reportWebVitals = (onPerfEntry) => {
   if (onPerfEntry && onPerfEntry instanceof Function) {
