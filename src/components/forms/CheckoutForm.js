@@ -4,12 +4,18 @@
  * Uses React Hook Form + Zod for contact/shipping validation.
  * Uses Stripe's CardElement for secure PCI-compliant card collection.
  *
- * Flow:
+ * Checkout Flow:
  *   1. Validate contact/shipping fields with react-hook-form + zod
- *   2. POST /api/orders/create-payment-intent -> get {client_secret}
- *   3. stripe.confirmCardPayment(client_secret, {payment_method: {card: cardElement}})
- *   4. On success: POST /api/orders/create with {paymentIntentId, shippingAddress}
- *   5. Redirect to /order-success/:id
+ *   2. POST /api/orders/create-payment-intent (no body — cart fetched server-side)
+ *      -> returns { clientSecret, paymentIntentId, orderSummary }
+ *   3. stripe.confirmCardPayment(clientSecret, { payment_method: { card: cardElement } })
+ *   4. On success: POST /api/orders/create { paymentIntentId, shippingAddress, paymentInfo }
+ *   5. Clear cart, redirect to /order-success with order state
+ *
+ * Error Handling:
+ *   - card_error / validation_error -> inline error below CardElement
+ *   - api_error / network error -> server error banner at top of form
+ *   - 3DS / next action -> stripe.handleNextAction() (handled automatically by confirmCardPayment)
  */
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -19,7 +25,7 @@ import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { checkoutSchema, COUNTRIES } from '../../utils/validation';
 import { FormInput, FormSelect, SectionHeading } from './FormField';
 import { useCart } from '../../hooks/useCart';
-import api from '../../services/api';
+import { createPaymentIntent, createOrder } from '../../services/ordersApi';
 
 /**
  * Stripe CardElement styling to match the dark theme.
@@ -110,35 +116,47 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
     setServerError('');
     setCardError('');
 
+    // Build shipping address object (reused in multiple steps)
+    const shippingAddress = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      address: data.address,
+      city: data.city,
+      zip: data.zip,
+      country: data.country,
+      ...(data.phone ? { phone: data.phone } : {}),
+    };
+
     try {
-      // Step 1: Create a PaymentIntent on the backend
-      // Backend calculates total from cart to prevent tampering
+      // ── Step 1: Create a PaymentIntent on the backend ──────────────────────
+      // Backend calculates total from the authenticated user's cart to prevent
+      // client-side price tampering. No cart data is sent from the client.
       let clientSecret;
+      let paymentIntentId;
+      let orderSummary;
+
       try {
-        const intentResponse = await api.post('/orders/create-payment-intent', {
-          shippingAddress: {
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email,
-            address: data.address,
-            city: data.city,
-            zip: data.zip,
-            country: data.country,
-            ...(data.phone ? { phone: data.phone } : {}),
-          },
-        });
-        clientSecret = intentResponse.data?.client_secret || intentResponse.data?.clientSecret;
+        const intentData = await createPaymentIntent();
+        clientSecret = intentData.clientSecret;
+        paymentIntentId = intentData.paymentIntentId;
+        orderSummary = intentData.orderSummary;
       } catch (intentErr) {
-        throw new Error(
-          intentErr.message || 'Failed to initialize payment. Please try again.'
-        );
+        // Surface specific backend error messages (e.g., "Cart is empty", "Item out of stock")
+        const message =
+          intentErr.message ||
+          'Failed to initialize payment. Please try again.';
+        throw new Error(message);
       }
 
       if (!clientSecret) {
         throw new Error('Invalid payment response from server. Please try again.');
       }
 
-      // Step 2: Confirm the card payment with Stripe
+      // ── Step 2: Confirm the card payment with Stripe ───────────────────────
+      // stripe.confirmCardPayment handles 3DS authentication automatically.
+      // On 3DS, Stripe opens a modal for the user to authenticate, then
+      // resolves the promise with the final paymentIntent status.
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
         clientSecret,
         {
@@ -160,8 +178,15 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       );
 
       if (stripeError) {
-        // Handle Stripe-specific errors (card declined, 3DS failure, etc.)
-        if (stripeError.type === 'card_error' || stripeError.type === 'validation_error') {
+        // Handle Stripe-specific errors:
+        // - card_error: card declined, insufficient funds, etc.
+        // - validation_error: invalid card number, expiry, etc.
+        // - api_error: Stripe API issue
+        // - authentication_error: 3DS failure
+        if (
+          stripeError.type === 'card_error' ||
+          stripeError.type === 'validation_error'
+        ) {
           setCardError(stripeError.message);
         } else {
           setServerError(
@@ -174,46 +199,74 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
         return;
       }
 
-      // Step 3: Payment succeeded — create the order record on the backend
-      let order;
+      // Verify payment succeeded (handles edge cases where status isn't 'succeeded')
+      if (paymentIntent.status !== 'succeeded' && paymentIntent.status !== 'processing') {
+        setServerError(
+          `Payment status: ${paymentIntent.status}. Please contact support if you were charged.`
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // ── Step 3: Create the order record on the backend ────────────────────
+      // Payment succeeded — persist the order. If this fails, the webhook
+      // (payment_intent.succeeded) will create/update the order as a fallback.
+      let order = null;
       try {
-        const orderResponse = await api.post('/orders/create', {
-          paymentIntentId: paymentIntent.id,
-          shippingAddress: {
-            firstName: data.firstName,
-            lastName: data.lastName,
-            email: data.email,
-            address: data.address,
-            city: data.city,
-            zip: data.zip,
-            country: data.country,
-            ...(data.phone ? { phone: data.phone } : {}),
-          },
+        const orderResponse = await createOrder({
+          paymentIntentId: paymentIntentId || paymentIntent.id,
+          shippingAddress,
           paymentInfo: {
             method: 'card',
-            paymentIntentId: paymentIntent.id,
+            paymentIntentId: paymentIntentId || paymentIntent.id,
             status: paymentIntent.status,
           },
         });
-        order = orderResponse.data?.order || orderResponse.data;
+        // Normalize order data from various response shapes
+        order = orderResponse?.order || orderResponse?.data || orderResponse;
       } catch (orderErr) {
-        // Payment succeeded but order creation failed — still show success
-        // The webhook will handle order creation as a fallback
-        console.error('Order creation failed after payment:', orderErr);
-        order = { paymentIntentId: paymentIntent.id };
+        // Payment succeeded but order creation failed.
+        // The webhook will handle order creation as a fallback.
+        // We still redirect to success so the user isn't confused.
+        console.error('[CheckoutForm] Order creation failed after payment:', orderErr);
+        order = {
+          paymentIntentId: paymentIntentId || paymentIntent.id,
+          status: paymentIntent.status,
+          orderSummary,
+        };
       }
 
-      // Step 4: Clear cart and redirect to success
-      if (clearCart) clearCart();
+      // ── Step 4: Clear cart and redirect to success ─────────────────────────
+      if (clearCart) {
+        clearCart();
+      }
+
+      // Build the success state to pass to the order success page
+      const successState = {
+        order: {
+          ...order,
+          // Ensure we always have a paymentIntentId for reference
+          paymentIntentId: order?.paymentIntentId || paymentIntent.id,
+          // Include order summary for display on success page
+          orderSummary: order?.orderSummary || orderSummary,
+          // Include shipping address for confirmation display
+          shippingAddress,
+        },
+      };
 
       if (onOrderSuccess) {
-        onOrderSuccess(order);
+        // Parent component handles the redirect (e.g., CheckoutPage)
+        onOrderSuccess(successState.order);
       } else {
-        navigate(`/order-success/${order?.id || order?._id || ''}`, {
-          state: { order },
-        });
+        // Direct navigation to success page
+        const orderId = order?.id || order?._id || '';
+        navigate(
+          orderId ? `/order-success/${orderId}` : '/order-success',
+          { state: successState, replace: true }
+        );
       }
     } catch (err) {
+      // Catch-all for unexpected errors
       const message =
         err.message ||
         err.response?.data?.error ||

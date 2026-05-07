@@ -7,6 +7,7 @@
  *   - Form validation works for required fields
  *   - Payment flow calls create-payment-intent then confirmCardPayment
  *   - Card errors and server errors are displayed correctly
+ *   - Successful payment clears cart and calls onOrderSuccess
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -40,15 +41,14 @@ jest.mock('../../../hooks/useCart', () => ({
   default: () => ({ clearCart: jest.fn() }),
 }));
 
-// Mock API
-jest.mock('../../../services/api', () => ({
-  default: {
-    post: jest.fn(),
-  },
+// Mock ordersApi — the form now uses createPaymentIntent and createOrder directly
+jest.mock('../../../services/ordersApi', () => ({
+  createPaymentIntent: jest.fn(),
+  createOrder: jest.fn(),
 }));
 
 import CheckoutForm from '../CheckoutForm';
-import api from '../../../services/api';
+import { createPaymentIntent, createOrder } from '../../../services/ordersApi';
 
 const renderForm = (props = {}) =>
   render(
@@ -56,6 +56,17 @@ const renderForm = (props = {}) =>
       <CheckoutForm {...props} />
     </BrowserRouter>
   );
+
+/** Fill in all required checkout fields */
+async function fillRequiredFields(user) {
+  await user.type(screen.getByLabelText(/first name/i), 'John');
+  await user.type(screen.getByLabelText(/last name/i), 'Doe');
+  await user.type(screen.getByLabelText(/email address/i), 'john@example.com');
+  await user.type(screen.getByLabelText(/street address/i), '123 Main St');
+  await user.type(screen.getByLabelText(/city/i), 'New York');
+  await user.type(screen.getByLabelText(/zip/i), '10001');
+  await user.selectOptions(screen.getByLabelText(/country/i), 'US');
+}
 
 describe('CheckoutForm', () => {
   beforeEach(() => {
@@ -172,46 +183,36 @@ describe('CheckoutForm', () => {
 
   // ── Payment flow ───────────────────────────────────────────────────────────
 
-  it('calls create-payment-intent and confirmCardPayment on valid submit', async () => {
+  it('calls createPaymentIntent and confirmCardPayment on valid submit', async () => {
     const user = userEvent.setup();
     const onOrderSuccess = jest.fn();
 
-    api.post
-      .mockResolvedValueOnce({ data: { client_secret: 'pi_test_secret' } }) // create-payment-intent
-      .mockResolvedValueOnce({ data: { order: { id: 'order-123' } } }); // create order
+    // Backend returns nested { status: 'success', data: { clientSecret, paymentIntentId, orderSummary } }
+    // createPaymentIntent() in ordersApi.js normalizes this to a flat object
+    createPaymentIntent.mockResolvedValueOnce({
+      clientSecret: 'pi_test_secret',
+      paymentIntentId: 'pi_test_id',
+      amount: 8999,
+      currency: 'usd',
+      orderSummary: { subtotal: 79.99, shippingCost: 0, total: 89.99, itemCount: 1 },
+    });
+
+    createOrder.mockResolvedValueOnce({
+      order: { id: 'order-123', status: 'pending' },
+    });
 
     mockConfirmCardPayment.mockResolvedValueOnce({
-      paymentIntent: { id: 'pi_test', status: 'succeeded' },
+      paymentIntent: { id: 'pi_test_id', status: 'succeeded' },
       error: null,
     });
 
     renderForm({ onOrderSuccess });
+    await fillRequiredFields(user);
 
-    await user.type(screen.getByLabelText(/first name/i), 'John');
-    await user.type(screen.getByLabelText(/last name/i), 'Doe');
-    await user.type(screen.getByLabelText(/email address/i), 'john@example.com');
-    await user.type(screen.getByLabelText(/street address/i), '123 Main St');
-    await user.type(screen.getByLabelText(/city/i), 'New York');
-    await user.type(screen.getByLabelText(/zip/i), '10001');
-
-    // Select country from dropdown
-    const countrySelect = screen.getByLabelText(/country/i);
-    await user.selectOptions(countrySelect, 'US');
-
-    const submitButton = screen.getByRole('button', { name: /place order/i });
-    await user.click(submitButton);
+    await user.click(screen.getByRole('button', { name: /place order/i }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith(
-        '/orders/create-payment-intent',
-        expect.objectContaining({
-          shippingAddress: expect.objectContaining({
-            firstName: 'John',
-            lastName: 'Doe',
-            email: 'john@example.com',
-          }),
-        })
-      );
+      expect(createPaymentIntent).toHaveBeenCalledTimes(1);
     });
 
     await waitFor(() => {
@@ -229,6 +230,22 @@ describe('CheckoutForm', () => {
     });
 
     await waitFor(() => {
+      expect(createOrder).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentIntentId: 'pi_test_id',
+          shippingAddress: expect.objectContaining({
+            firstName: 'John',
+            lastName: 'Doe',
+            email: 'john@example.com',
+          }),
+          paymentInfo: expect.objectContaining({
+            method: 'card',
+          }),
+        })
+      );
+    });
+
+    await waitFor(() => {
       expect(onOrderSuccess).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'order-123' })
       );
@@ -238,7 +255,14 @@ describe('CheckoutForm', () => {
   it('shows card error when Stripe returns card_error', async () => {
     const user = userEvent.setup();
 
-    api.post.mockResolvedValueOnce({ data: { client_secret: 'pi_test_secret' } });
+    createPaymentIntent.mockResolvedValueOnce({
+      clientSecret: 'pi_test_secret',
+      paymentIntentId: 'pi_test_id',
+      amount: 8999,
+      currency: 'usd',
+      orderSummary: null,
+    });
+
     mockConfirmCardPayment.mockResolvedValueOnce({
       paymentIntent: null,
       error: {
@@ -248,16 +272,7 @@ describe('CheckoutForm', () => {
     });
 
     renderForm();
-
-    await user.type(screen.getByLabelText(/first name/i), 'John');
-    await user.type(screen.getByLabelText(/last name/i), 'Doe');
-    await user.type(screen.getByLabelText(/email address/i), 'john@example.com');
-    await user.type(screen.getByLabelText(/street address/i), '123 Main St');
-    await user.type(screen.getByLabelText(/city/i), 'New York');
-    await user.type(screen.getByLabelText(/zip/i), '10001');
-    const countrySelect = screen.getByLabelText(/country/i);
-    await user.selectOptions(countrySelect, 'US');
-
+    await fillRequiredFields(user);
     await user.click(screen.getByRole('button', { name: /place order/i }));
 
     await waitFor(() => {
@@ -268,21 +283,12 @@ describe('CheckoutForm', () => {
   it('shows server error when payment-intent creation fails', async () => {
     const user = userEvent.setup();
 
-    api.post.mockRejectedValueOnce({
+    createPaymentIntent.mockRejectedValueOnce({
       message: 'Failed to initialize payment. Please try again.',
     });
 
     renderForm();
-
-    await user.type(screen.getByLabelText(/first name/i), 'John');
-    await user.type(screen.getByLabelText(/last name/i), 'Doe');
-    await user.type(screen.getByLabelText(/email address/i), 'john@example.com');
-    await user.type(screen.getByLabelText(/street address/i), '123 Main St');
-    await user.type(screen.getByLabelText(/city/i), 'New York');
-    await user.type(screen.getByLabelText(/zip/i), '10001');
-    const countrySelect = screen.getByLabelText(/country/i);
-    await user.selectOptions(countrySelect, 'US');
-
+    await fillRequiredFields(user);
     await user.click(screen.getByRole('button', { name: /place order/i }));
 
     await waitFor(() => {
@@ -295,7 +301,14 @@ describe('CheckoutForm', () => {
   it('shows server error for non-card Stripe errors', async () => {
     const user = userEvent.setup();
 
-    api.post.mockResolvedValueOnce({ data: { client_secret: 'pi_test_secret' } });
+    createPaymentIntent.mockResolvedValueOnce({
+      clientSecret: 'pi_test_secret',
+      paymentIntentId: 'pi_test_id',
+      amount: 8999,
+      currency: 'usd',
+      orderSummary: null,
+    });
+
     mockConfirmCardPayment.mockResolvedValueOnce({
       paymentIntent: null,
       error: {
@@ -305,16 +318,7 @@ describe('CheckoutForm', () => {
     });
 
     renderForm();
-
-    await user.type(screen.getByLabelText(/first name/i), 'John');
-    await user.type(screen.getByLabelText(/last name/i), 'Doe');
-    await user.type(screen.getByLabelText(/email address/i), 'john@example.com');
-    await user.type(screen.getByLabelText(/street address/i), '123 Main St');
-    await user.type(screen.getByLabelText(/city/i), 'New York');
-    await user.type(screen.getByLabelText(/zip/i), '10001');
-    const countrySelect = screen.getByLabelText(/country/i);
-    await user.selectOptions(countrySelect, 'US');
-
+    await fillRequiredFields(user);
     await user.click(screen.getByRole('button', { name: /place order/i }));
 
     await waitFor(() => {
@@ -327,17 +331,18 @@ describe('CheckoutForm', () => {
   it('clears cart and calls onOrderSuccess after successful payment', async () => {
     const user = userEvent.setup();
     const onOrderSuccess = jest.fn();
-    const clearCart = jest.fn();
 
-    // Override the useCart mock for this test
-    jest.doMock('../../../hooks/useCart', () => ({
-      useCart: () => ({ clearCart }),
-      default: () => ({ clearCart }),
-    }));
+    createPaymentIntent.mockResolvedValueOnce({
+      clientSecret: 'pi_test_secret',
+      paymentIntentId: 'pi_456',
+      amount: 8999,
+      currency: 'usd',
+      orderSummary: { total: 89.99 },
+    });
 
-    api.post
-      .mockResolvedValueOnce({ data: { client_secret: 'pi_test_secret' } })
-      .mockResolvedValueOnce({ data: { order: { id: 'order-456' } } });
+    createOrder.mockResolvedValueOnce({
+      order: { id: 'order-456', status: 'pending' },
+    });
 
     mockConfirmCardPayment.mockResolvedValueOnce({
       paymentIntent: { id: 'pi_456', status: 'succeeded' },
@@ -352,13 +357,49 @@ describe('CheckoutForm', () => {
     await user.type(screen.getByLabelText(/street address/i), '456 Oak Ave');
     await user.type(screen.getByLabelText(/city/i), 'Los Angeles');
     await user.type(screen.getByLabelText(/zip/i), '90001');
-    const countrySelect = screen.getByLabelText(/country/i);
-    await user.selectOptions(countrySelect, 'US');
+    await user.selectOptions(screen.getByLabelText(/country/i), 'US');
 
     await user.click(screen.getByRole('button', { name: /place order/i }));
 
     await waitFor(() => {
       expect(onOrderSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it('still redirects to success if order creation fails after payment', async () => {
+    const user = userEvent.setup();
+    const onOrderSuccess = jest.fn();
+
+    createPaymentIntent.mockResolvedValueOnce({
+      clientSecret: 'pi_test_secret',
+      paymentIntentId: 'pi_789',
+      amount: 5000,
+      currency: 'usd',
+      orderSummary: { total: 50.00 },
+    });
+
+    // Order creation fails — but payment already succeeded
+    createOrder.mockRejectedValueOnce({
+      message: 'Database error',
+    });
+
+    mockConfirmCardPayment.mockResolvedValueOnce({
+      paymentIntent: { id: 'pi_789', status: 'succeeded' },
+      error: null,
+    });
+
+    renderForm({ onOrderSuccess });
+    await fillRequiredFields(user);
+    await user.click(screen.getByRole('button', { name: /place order/i }));
+
+    // Should still call onOrderSuccess even if order creation failed
+    // (webhook will handle order creation as fallback)
+    await waitFor(() => {
+      expect(onOrderSuccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentIntentId: 'pi_789',
+        })
+      );
     });
   });
 });

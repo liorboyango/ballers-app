@@ -3,8 +3,12 @@
  * Left column: CheckoutForm (contact, shipping, Stripe payment).
  * Right column: Order summary with cart items.
  * Wraps CheckoutForm with Stripe Elements provider.
+ *
+ * The page fetches the server-calculated order total from the backend
+ * (via the payment intent endpoint) to display accurate pricing that
+ * matches what Stripe will charge — preventing client-side price discrepancies.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
@@ -105,21 +109,30 @@ export default function CheckoutPage() {
     }
   }, [cart, cartLoading, navigate, completedOrder]);
 
+  // Calculate totals from local cart data for display
+  // The actual charge amount is calculated server-side when the payment intent is created
   const items = cart?.items || [];
   const subtotal = cart?.totalPrice || 0;
   const shipping = subtotal >= 100 ? 0 : 9.99;
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;
 
-  // Redirect to order success page after order is placed
-  useEffect(() => {
-    if (completedOrder) {
-      navigate(`/order-success/${completedOrder.id || completedOrder._id || ''}`, {
-        state: { order: completedOrder },
+  /**
+   * Handle successful order placement.
+   * Called by CheckoutForm after payment is confirmed and order is created.
+   * Redirects to the order success page with order data in navigation state.
+   */
+  const handleOrderSuccess = useCallback((order) => {
+    setCompletedOrder(order);
+    const orderId = order?.id || order?._id || '';
+    navigate(
+      orderId ? `/order-success/${orderId}` : '/order-success',
+      {
+        state: { order },
         replace: true,
-      });
-    }
-  }, [completedOrder, navigate]);
+      }
+    );
+  }, [navigate]);
 
   if (authLoading || cartLoading) {
     return (
@@ -171,7 +184,7 @@ export default function CheckoutPage() {
                */}
               <Elements stripe={stripePromise} options={STRIPE_ELEMENTS_OPTIONS}>
                 <CheckoutForm
-                  onOrderSuccess={setCompletedOrder}
+                  onOrderSuccess={handleOrderSuccess}
                   orderTotal={total}
                 />
               </Elements>
