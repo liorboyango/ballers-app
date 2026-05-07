@@ -60,7 +60,7 @@ function CompleteTheKit({ excludeId }) {
                 </div>
               </Link>
             );
-          })
+          }}
         </div>
       )}
     </section>
@@ -102,19 +102,23 @@ function ProductDetailPage() {
   const [playerNumber, setPlayerNumber] = useState('');
   const [sizeError, setSizeError] = useState('');
   const [addedToCart, setAddedToCart] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState('');
 
   const images = product ? getProductImages(product) : [];
   const sizes = product?.sizes?.length ? product.sizes : SIZES;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!product) return;
     if (!selectedSize) {
       setSizeError('Please select a size');
       return;
     }
     setSizeError('');
-    if (typeof addToCart === 'function') {
-      addToCart({
+    setAddError('');
+    setAdding(true);
+    try {
+      await addToCart({
         productId: product._id || product.id,
         quantity: 1,
         customization: {
@@ -122,9 +126,13 @@ function ProductDetailPage() {
           ...(personalize ? { playerName, playerNumber } : {})
         }
       });
+      setAddedToCart(true);
+      setTimeout(() => setAddedToCart(false), 2000);
+    } catch (err) {
+      setAddError(err.message || 'Failed to add to cart');
+    } finally {
+      setAdding(false);
     }
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 2000);
   };
 
   return (
@@ -265,11 +273,15 @@ function ProductDetailPage() {
 
                 <button
                   onClick={handleAddToCart}
-                  className={`btn-primary w-full mt-6 text-base py-4 ${addedToCart ? 'bg-brand-dark' : ''}`}
+                  disabled={adding}
+                  className={`btn-primary w-full mt-6 text-base py-4 ${addedToCart ? 'bg-brand-dark' : ''} ${adding ? 'opacity-50 cursor-not-allowed' : ''}`}
                   aria-label="Add to cart"
                 >
-                  {addedToCart ? '✓ Added to Cart' : `Add to Cart — $${Number(product.price ?? 0).toFixed(2)}`}
+                  {adding ? 'Adding...' : addedToCart ? '✓ Added to Cart' : `Add to Cart — $${Number(product.price ?? 0).toFixed(2)}`}
                 </button>
+                {addError && (
+                  <p className="text-accent-danger text-xs mt-2" role="alert">{addError}</p>
+                )}
                 <p className="text-center text-xs text-ink-muted mt-3">
                   <span aria-hidden="true">🚚</span> Free shipping on orders over $100
                 </p>
