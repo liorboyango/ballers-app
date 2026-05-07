@@ -60,7 +60,7 @@ function CompleteTheKit({ excludeId }) {
                 </div>
               </Link>
             );
-          })}
+          })
         </div>
       )}
     </section>
@@ -114,12 +114,14 @@ function ProductDetailPage() {
     }
     setSizeError('');
     if (typeof addToCart === 'function') {
-      addToCart(
-        product,
-        selectedSize,
-        1,
-        personalize && (playerName || playerNumber) ? { playerName, playerNumber } : null
-      );
+      addToCart({
+        productId: product._id || product.id,
+        quantity: 1,
+        customization: {
+          size: selectedSize,
+          ...(personalize ? { playerName, playerNumber } : {})
+        }
+      });
     }
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
