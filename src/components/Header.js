@@ -4,7 +4,8 @@
  * Features:
  *  - White surface, green Ballers logo
  *  - Nav: Shop · National Teams · Custom Kits · Dashboard (admin-only)
- *  - Cart icon + count, account icon (login or user menu)
+ *  - Cart icon + count badge (animates on item add), opens CartDrawer on click
+ *  - Account icon (login or user menu)
  *  - Mobile hamburger
  */
 import React, { useState, useEffect, useRef } from 'react';
@@ -27,15 +28,18 @@ const Header = () => {
 
   const isAdmin = user?.role === 'admin';
 
+  // Animate badge when item count increases
   useEffect(() => {
     if (totalItems > prevTotalItems) {
       setCartBadgeAnimate(true);
       const timer = setTimeout(() => setCartBadgeAnimate(false), 600);
+      setPrevTotalItems(totalItems);
       return () => clearTimeout(timer);
     }
     setPrevTotalItems(totalItems);
-  }, [totalItems, prevTotalItems]);
+  }, [totalItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
@@ -107,6 +111,7 @@ const Header = () => {
 
           {/* Right actions */}
           <div className="flex items-center gap-1">
+            {/* Cart button — opens CartDrawer, shows item count badge */}
             <button
               onClick={openCart}
               className="relative p-2 text-ink-soft hover:text-brand transition-colors"
@@ -119,11 +124,13 @@ const Header = () => {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
+
+              {/* Badge: only shown when cart has items */}
               {totalItems > 0 && (
                 <span
                   className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1
                     bg-brand text-white text-[10px] font-bold rounded-full
-                    flex items-center justify-center transition-transform
+                    flex items-center justify-center transition-transform duration-200
                     ${cartBadgeAnimate ? 'scale-125' : 'scale-100'}`}
                   aria-hidden="true"
                 >
@@ -132,6 +139,7 @@ const Header = () => {
               )}
             </button>
 
+            {/* User menu / login */}
             {isAuthenticated ? (
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -195,6 +203,7 @@ const Header = () => {
         </div>
       </div>
 
+      {/* Mobile navigation menu */}
       {isMobileMenuOpen && (
         <div
           className="lg:hidden bg-white border-t border-line px-4 py-4"

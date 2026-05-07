@@ -10,6 +10,7 @@ import { CartProvider } from './context/CartContext';
 import { ToastProvider } from './context/ToastContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import CartDrawer from './components/CartDrawer';
 import AdminRoute from './components/AdminRoute';
 import { LoadingSpinner } from './components/ui';
 
@@ -48,6 +49,7 @@ const NotFound = () => (
 
 /**
  * Layout switcher — admin routes render without storefront chrome (their own sidebar).
+ * CartDrawer is rendered globally so it's accessible from any page.
  */
 function AppShell() {
   const location = useLocation();
@@ -56,6 +58,8 @@ function AppShell() {
   return (
     <div className="min-h-screen flex flex-col bg-surface-muted text-ink">
       {!isAdminRoute && <Header />}
+      {/* CartDrawer rendered globally — controlled by CartContext isCartOpen state */}
+      {!isAdminRoute && <CartDrawer />}
       <Suspense fallback={<PageLoader />}>
         <div className="flex-1">
           <Routes>
