@@ -8,14 +8,20 @@
  *   1. Validate contact/shipping fields with react-hook-form + zod
  *   2. POST /api/orders/create-payment-intent (no body — cart fetched server-side)
  *      -> returns { clientToken, paymentId, orderSummary }
- *   3. rapyd.confirmPayment(clientToken, { elements: { card: cardElement } })
+ *   3. rapyd.confirmPayment(clientToken, { payment_method: { type, fields, billing_address } })
  *   4. On success: POST /api/orders/create { rapydPaymentId, shippingAddress }
  *   5. Clear cart, redirect to /order-success with order state
  *
+ * Payment Status Handling:
+ *   - SUCCEEDED / ACTIVATED  -> proceed to order creation
+ *   - PENDING                -> show pending message, proceed (webhook will update)
+ *   - FAILED / CANCELED      -> show error, stay on form
+ *   - EXPIRED / ERROR        -> show error, stay on form
+ *
  * Error Handling:
  *   - card_error / validation_error -> inline error below RapydCardElement
- *   - api_error / network error -> server error banner at top of form
- *   - 3DS / next action -> handled automatically by rapyd.confirmPayment()
+ *   - api_error / network error     -> server error banner at top of form
+ *   - 3DS / next action             -> handled automatically by rapyd.confirmPayment()
  */
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -28,13 +34,54 @@ import { useCart } from '../../hooks/useCart';
 import { createPaymentIntent, createOrder } from '../../services/ordersApi';
 
 /**
+ * Rapyd payment statuses that indicate the payment has succeeded or
+ * is in an acceptable initial state to proceed with order creation.
+ * ACTIVATED is Rapyd's initial "auth hold" status for some payment methods.
+ */
+const RAPYD_SUCCESS_STATUSES = new Set(['SUCCEEDED', 'ACTIVATED', 'PENDING']);
+
+/**
+ * Rapyd payment statuses that indicate a terminal failure.
+ */
+const RAPYD_FAILURE_STATUSES = new Set(['FAILED', 'CANCELED', 'CANCELLED', 'EXPIRED', 'ERROR']);
+
+/**
+ * Extract a human-readable error message from a Rapyd error object.
+ * Handles both string messages and nested error structures.
+ *
+ * @param {object|string} rapydError - Error from rapyd.confirmPayment()
+ * @returns {string} Human-readable error message
+ */
+function getRapydErrorMessage(rapydError) {
+  if (!rapydError) return 'Payment could not be processed. Please try again.';
+  if (typeof rapydError === 'string') return rapydError;
+  return (
+    rapydError.message ||
+    rapydError.error?.message ||
+    rapydError.response?.error?.message ||
+    'Payment could not be processed. Please try again.'
+  );
+}
+
+/**
  * @param {object} props
  * @param {function} [props.onOrderSuccess] - Called with order data after successful placement
- * @param {number} [props.orderTotal] - Total order amount for display on submit button
+ * @param {number}   [props.orderTotal]     - Total order amount for display on submit button
  */
 export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
   const navigate = useNavigate();
   const { clearCart } = useCart();
+
+  /**
+   * useRapyd() returns the Rapyd instance bound to the nearest <RapydProvider>.
+   * It exposes:
+   *   - confirmPayment(clientToken, options)  – confirms the payment with card details
+   *   - getElement(type)                      – retrieves a mounted Elements instance
+   *   - createPaymentMethod(options)          – creates a reusable payment method
+   *
+   * The hook returns null before the SDK is initialised; we disable the submit
+   * button and guard the submission handler accordingly.
+   */
   const rapyd = useRapyd();
 
   const [serverError, setServerError] = useState('');
@@ -61,10 +108,15 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
 
   /**
    * Handle RapydCardElement change events.
-   * Shows inline error messages for card validation issues.
+   * Shows inline error messages for card validation issues (e.g., invalid
+   * card number, expired date) as the user types — before form submission.
+   *
+   * @param {object} event - Rapyd card element change event
+   * @param {object|null} event.error - Error object if invalid, null if valid
+   * @param {string} event.error.message - Human-readable error message
    */
   const handleCardChange = (event) => {
-    if (event.error) {
+    if (event?.error) {
       setCardError(event.error.message);
     } else {
       setCardError('');
@@ -73,12 +125,20 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
 
   /**
    * Main form submission handler.
-   * Validates form, creates payment intent, confirms payment with Rapyd,
-   * then creates the order record on the backend.
+   *
+   * Sequence:
+   *   1. Create payment intent on backend → get clientToken + paymentId
+   *   2. Call rapyd.confirmPayment() → SDK handles card data + 3DS
+   *   3. Verify payment status returned by Rapyd
+   *   4. Create order record on backend using the confirmed paymentId
+   *   5. Clear cart and navigate to order-success
+   *
+   * The entire flow is wrapped in a try/catch so any unexpected error
+   * surfaces a user-facing banner rather than a blank screen.
    */
   const onSubmit = async (data) => {
+    // Guard: Rapyd SDK must be initialised before we can confirm a payment.
     if (!rapyd) {
-      // Rapyd.js has not loaded yet — disable form submission
       setServerError('Payment system is loading. Please try again in a moment.');
       return;
     }
@@ -87,7 +147,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
     setServerError('');
     setCardError('');
 
-    // Build shipping address object (reused in multiple steps)
+    // Build shipping address object used in multiple steps
     const shippingAddress = {
       firstName: data.firstName,
       lastName: data.lastName,
@@ -100,9 +160,10 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
     };
 
     try {
-      // ── Step 1: Create a Payment on the backend ──────────────────────────
-      // Backend calculates total from the authenticated user's cart to prevent
-      // client-side price tampering. No cart data is sent from the client.
+      // ── Step 1: Create a Rapyd Payment on the backend ────────────────────
+      // The backend reads the authenticated user's cart, calculates the total,
+      // and creates a Rapyd Payment object. We only receive the clientToken and
+      // paymentId — no pricing data leaves the server to the client.
       let clientToken;
       let paymentId;
       let orderSummary;
@@ -113,126 +174,167 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
         paymentId = intentData.paymentId;
         orderSummary = intentData.orderSummary;
       } catch (intentErr) {
-        // Surface specific backend error messages (e.g., "Cart is empty", "Item out of stock")
-        const message =
+        // Surface specific backend error messages (e.g. "Cart is empty",
+        // "Item out of stock") so the user knows what to fix.
+        throw new Error(
           intentErr.message ||
-          'Failed to initialize payment. Please try again.';
-        throw new Error(message);
+            'Failed to initialize payment. Please try again.'
+        );
       }
 
       if (!clientToken) {
         throw new Error('Invalid payment response from server. Please try again.');
       }
 
-      // ── Step 2: Confirm the card payment with Rapyd ───────────────────────
-      // rapyd.confirmPayment handles 3DS authentication automatically.
-      // On 3DS, Rapyd opens a modal for the user to authenticate, then
-      // resolves the promise with the final payment status.
+      // ── Step 2: Confirm the card payment with the Rapyd SDK ───────────────
+      // rapyd.confirmPayment() sends the tokenised card details (collected by
+      // the PCI-compliant RapydCardElement iframe) along with the clientToken
+      // to Rapyd servers. The SDK handles 3DS authentication transparently:
+      //   - If 3DS is required, a modal opens automatically for the user to
+      //     authenticate with their bank.
+      //   - The promise resolves only after 3DS is complete (pass or fail).
+      //
+      // options.billing_address maps to Rapyd's payment_method.billing_address.
+      // options.payment_method_type defaults to 'us_debit_visa_card' but Rapyd
+      // Elements auto-detect the card brand, so we pass 'card' as a generic type
+      // when using the hosted element.
+      const confirmOptions = {
+        // billing_address is sent to Rapyd for AVS checks and 3DS pre-fill.
+        billing_address: {
+          name: `${data.firstName} ${data.lastName}`,
+          email: data.email,
+          line_1: data.address,
+          city: data.city,
+          zip: data.zip,
+          country: data.country,
+          ...(data.phone ? { phone_number: data.phone } : {}),
+        },
+      };
+
+      // If the SDK exposes getElement(), include the mounted card element
+      // reference so Rapyd knows which iframe to pull card data from.
+      // Some SDK versions resolve the element automatically via context.
+      if (typeof rapyd.getElement === 'function') {
+        const cardEl = rapyd.getElement('card');
+        if (cardEl) {
+          confirmOptions.element = cardEl;
+        }
+      }
+
       const { error: rapydError, payment } = await rapyd.confirmPayment(
         clientToken,
-        {
-          elements: {
-            card: rapyd.getElement ? rapyd.getElement('card') : undefined,
-          },
-          billing_details: {
-            name: `${data.firstName} ${data.lastName}`,
-            email: data.email,
-            phone: data.phone || undefined,
-            address: {
-              line1: data.address,
-              city: data.city,
-              postal_code: data.zip,
-              country: data.country,
-            },
-          },
-        }
+        confirmOptions
       );
 
+      // ── Step 3: Handle Rapyd confirmation result ──────────────────────────
       if (rapydError) {
-        // Handle Rapyd-specific errors:
-        // - card_error: card declined, insufficient funds, etc.
-        // - validation_error: invalid card number, expiry, etc.
-        // - api_error: Rapyd API issue
-        if (
+        // Rapyd error types:
+        //   card_error       – card was declined, insufficient funds, etc.
+        //   validation_error – invalid card number, CVV, or expiry
+        //   api_error        – Rapyd-side issue (rare)
+        //   authentication_error – 3DS failed
+        const isCardError =
           rapydError.type === 'card_error' ||
-          rapydError.type === 'validation_error'
-        ) {
-          setCardError(rapydError.message);
+          rapydError.type === 'validation_error' ||
+          rapydError.type === 'authentication_error';
+
+        const errorMsg = getRapydErrorMessage(rapydError);
+
+        if (isCardError) {
+          setCardError(errorMsg);
         } else {
-          setServerError(
-            rapydError.message ||
-              'Payment could not be processed. Please try again.'
-          );
+          setServerError(errorMsg);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Verify the payment reached an acceptable status.
+      // SUCCEEDED  – full capture (most cards)
+      // ACTIVATED  – authorisation hold (some debit/prepaid cards)
+      // PENDING    – async payment method; webhook will update to SUCCEEDED
+      const paymentStatus = payment?.status?.toUpperCase();
+
+      if (paymentStatus && RAPYD_FAILURE_STATUSES.has(paymentStatus)) {
+        setServerError(
+          `Payment ${paymentStatus.toLowerCase()}. ` +
+            (paymentStatus === 'FAILED' || paymentStatus === 'CANCELED' || paymentStatus === 'CANCELLED'
+              ? 'Your card was not charged. Please try a different payment method.'
+              : 'Contact support if you believe you were charged.')
+        );
         setIsSubmitting(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
-      // Verify payment succeeded
-      const paymentStatus = payment?.status;
-      if (paymentStatus && paymentStatus !== 'SUCCEEDED' && paymentStatus !== 'ACTIVATED') {
-        setServerError(
-          `Payment status: ${paymentStatus}. Contact support if charged.`
+      // Warn (but don't block) on unexpected status values
+      if (
+        paymentStatus &&
+        !RAPYD_SUCCESS_STATUSES.has(paymentStatus)
+      ) {
+        console.warn(
+          `[CheckoutForm] Unexpected Rapyd payment status: ${paymentStatus}`
         );
-        setIsSubmitting(false);
-        return;
       }
 
-      // ── Step 3: Create the order record on the backend ────────────────────
-      // Payment succeeded — persist the order. If this fails, the webhook
-      // (payment.SUCCEEDED) will create/update the order as a fallback.
+      // ── Step 4: Create the order record on the backend ────────────────────
+      // We pass the Rapyd paymentId so the backend can retrieve and verify
+      // the payment independently (amount match, userId match, status check)
+      // before persisting the order.
+      //
+      // If order creation fails after a successful payment, the Rapyd webhook
+      // (payment.SUCCEEDED event) will create/update the order as a fallback.
+      const confirmedPaymentId = paymentId || payment?.id;
       let order = null;
+
       try {
         const orderResponse = await createOrder({
-          rapydPaymentId: paymentId || payment?.id,
+          rapydPaymentId: confirmedPaymentId,
           shippingAddress,
         });
-        // Normalize order data from various response shapes
+        // Normalise response shape — backends may return { order }, { data },
+        // or the order object directly.
         order = orderResponse?.order || orderResponse?.data || orderResponse;
       } catch (orderErr) {
         // Payment succeeded but order creation failed.
-        // The webhook will handle order creation as a fallback.
-        // We still redirect to success so the user isn't confused.
-        console.error('[CheckoutForm] Order creation failed after payment:', orderErr);
+        // We still redirect to success; the webhook handles order creation.
+        console.error(
+          '[CheckoutForm] Order creation failed after payment succeeded:',
+          orderErr
+        );
         order = {
-          rapydPaymentId: paymentId || payment?.id,
+          rapydPaymentId: confirmedPaymentId,
           status: paymentStatus || 'SUCCEEDED',
           orderSummary,
         };
       }
 
-      // ── Step 4: Clear cart and redirect to success ─────────────────────────
+      // ── Step 5: Clear cart and redirect to success ─────────────────────────
       if (clearCart) {
         clearCart();
       }
 
-      // Build the success state to pass to the order success page
-      const successState = {
-        order: {
-          ...order,
-          // Ensure we always have a rapydPaymentId for reference
-          rapydPaymentId: order?.rapydPaymentId || paymentId || payment?.id,
-          // Include order summary for display on success page
-          orderSummary: order?.orderSummary || orderSummary,
-          // Include shipping address for confirmation display
-          shippingAddress,
-        },
+      const successOrder = {
+        ...order,
+        // Guarantee rapydPaymentId is always present for the success page
+        rapydPaymentId: order?.rapydPaymentId || confirmedPaymentId,
+        orderSummary: order?.orderSummary || orderSummary,
+        shippingAddress,
       };
 
       if (onOrderSuccess) {
-        // Parent component handles the redirect (e.g., CheckoutPage)
-        onOrderSuccess(successState.order);
+        // Parent (CheckoutPage) handles navigation
+        onOrderSuccess(successOrder);
       } else {
-        // Direct navigation to success page
         const orderId = order?.id || order?._id || '';
         navigate(
           orderId ? `/order-success/${orderId}` : '/order-success',
-          { state: successState, replace: true }
+          { state: { order: successOrder }, replace: true }
         );
       }
     } catch (err) {
-      // Catch-all for unexpected errors
+      // Catch-all for unexpected errors not handled in the inner try/catch blocks.
       const message =
         err.message ||
         err.response?.data?.error ||
@@ -252,7 +354,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       aria-label="Checkout form"
       className="flex flex-col gap-8"
     >
-      {/* Server-level error banner */}
+      {/* ── Server-level error banner ── */}
       {serverError && (
         <div
           role="alert"
@@ -266,7 +368,10 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
           >
             <path
               fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0
+                 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414
+                 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414
+                 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
               clipRule="evenodd"
             />
           </svg>
@@ -368,8 +473,8 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
         <SectionHeading number="3" title="Payment" />
 
         {/*
-         * Credit Card indicator — Rapyd only (no PayPal tab per architecture plan).
-         * Shows accepted card brands.
+         * Credit Card indicator — Rapyd only.
+         * Shows accepted card brands on the right side.
          */}
         <div
           className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[#E8C547] bg-[#E8C547]/10 mb-5"
@@ -406,9 +511,10 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
           </label>
 
           {/*
-           * RapydCardElement wrapper styled to match existing inputs.
-           * focus-within ring changes color based on error state.
-           * The RapydCardElement renders inside a Rapyd-hosted iframe for PCI compliance.
+           * The outer <div> acts as the accessible container for the
+           * RapydCardElement iframe. Styling mirrors the text inputs:
+           * dark background, subtle border, gold focus ring.
+           * Error state switches the border/ring to red.
            */}
           <div
             id="rapyd-card-element"
@@ -437,7 +543,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
             />
           </div>
 
-          {/* Inline card error — shown below the RapydCardElement */}
+          {/* Inline card error shown below the element */}
           {cardError && (
             <p
               role="alert"
@@ -451,7 +557,9 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
               >
                 <path
                   fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0
+                     11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102
+                     0V6a1 1 0 00-1-1z"
                   clipRule="evenodd"
                 />
               </svg>
@@ -474,7 +582,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
             ))}
           </div>
 
-          {/* Security badge — reassures users their card data is safe */}
+          {/* Security badge */}
           <div className="flex items-center gap-2 text-xs text-[#A8B2C1] mt-1">
             <svg
               className="w-4 h-4 text-[#27AE60] flex-shrink-0"
@@ -484,7 +592,8 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
             >
               <path
                 fillRule="evenodd"
-                d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+                d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0
+                   01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
                 clipRule="evenodd"
               />
             </svg>

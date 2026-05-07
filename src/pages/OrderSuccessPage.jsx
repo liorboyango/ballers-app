@@ -10,7 +10,7 @@
  * Displays:
  *   - Animated checkmark
  *   - Order confirmation message
- *   - Order details (ID, status, total, shipping address)
+ *   - Order details (ID, Rapyd payment reference, status, total, shipping)
  *   - Continue Shopping CTA
  */
 import React, { useEffect } from 'react';
@@ -18,41 +18,81 @@ import { Link, useParams, useLocation } from 'react-router-dom';
 import { useOrder } from '../hooks/useOrders';
 import { LoadingSpinner } from '../components/ui';
 
-/** Format price as USD */
+/** Format a number as USD currency string */
 const formatPrice = (amount) =>
   typeof amount === 'number'
     ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
     : null;
 
+/**
+ * Map Rapyd / backend order statuses to a user-friendly display label
+ * and colour class.
+ *
+ * @param {string} status - Raw order status from API
+ * @returns {{ label: string, className: string }}
+ */
+function getStatusDisplay(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'paid' || s === 'confirmed' || s === 'succeeded' || s === 'activated') {
+    return { label: 'Confirmed', className: 'text-green-400' };
+  }
+  if (s === 'pending' || s === 'processing') {
+    return { label: 'Processing', className: 'text-[#E8C547]' };
+  }
+  if (s === 'shipped') {
+    return { label: 'Shipped', className: 'text-blue-400' };
+  }
+  if (s === 'delivered') {
+    return { label: 'Delivered', className: 'text-green-400' };
+  }
+  if (s === 'payment_failed' || s === 'failed' || s === 'canceled' || s === 'cancelled') {
+    return { label: 'Payment Failed', className: 'text-red-400' };
+  }
+  return { label: status || 'Confirmed', className: 'text-[#A8B2C1]' };
+}
+
 const OrderSuccessPage = () => {
   const { id } = useParams();
   const location = useLocation();
 
-  // Order data passed via navigation state (from CheckoutPage)
+  // Order data passed via navigation state (from CheckoutPage handleOrderSuccess)
   const stateOrder = location.state?.order;
 
-  // Fetch order from API if we have an ID but no state (e.g., direct URL access)
+  // Fetch order from API if we have an ID but no state (e.g., direct URL access
+  // after page refresh, or email link to order confirmation page)
   const shouldFetch = !!id && !stateOrder;
   const { order: fetchedOrder, loading } = useOrder(shouldFetch ? id : null);
 
   // Use state order if available, otherwise use fetched order
   const order = stateOrder || fetchedOrder;
 
-  // Scroll to top on mount
+  // Scroll to top on mount for best UX after navigating here
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  // Derive display values
+  // ── Derived display values ────────────────────────────────────────────────
   const orderId = order?.id || order?._id || id || null;
   const orderStatus = order?.status || 'confirmed';
+  const statusDisplay = getStatusDisplay(orderStatus);
+
   const orderTotal =
     order?.totalAmount ||
     order?.orderSummary?.total ||
     order?.total ||
     null;
+
   const shippingAddress = order?.shippingAddress || null;
+
+  // Rapyd payment reference — shown when no orderId is available yet
+  // (e.g., order creation fallback scenario where webhook is still pending)
+  const rapydPaymentId = order?.rapydPaymentId || null;
+
+  // Legacy Stripe reference (kept for backwards-compat with old orders)
   const paymentIntentId = order?.paymentIntentId || null;
+
+  // The payment reference to display (prefer rapydPaymentId)
+  const paymentRef = rapydPaymentId || paymentIntentId || null;
 
   return (
     <main
@@ -121,29 +161,31 @@ const OrderSuccessPage = () => {
                 </div>
               )}
 
-              {/* Payment reference (when no order ID yet) */}
-              {!orderId && paymentIntentId && (
+              {/*
+               * Rapyd payment reference — displayed when the order record isn't
+               * available yet (e.g., webhook latency) so the user has a reference
+               * number to quote if they contact support.
+               */}
+              {!orderId && paymentRef && (
                 <div className="flex justify-between items-start gap-4">
                   <span className="text-[#A8B2C1] flex-shrink-0">Payment Ref</span>
                   <span className="text-white font-mono text-xs text-right break-all">
-                    {paymentIntentId}
+                    {paymentRef}
                   </span>
                 </div>
               )}
 
+              {/* Payment method */}
+              <div className="flex justify-between">
+                <span className="text-[#A8B2C1]">Payment</span>
+                <span className="text-white">Credit Card (Rapyd)</span>
+              </div>
+
               {/* Status */}
               <div className="flex justify-between">
                 <span className="text-[#A8B2C1]">Status</span>
-                <span
-                  className={`capitalize font-medium ${
-                    orderStatus === 'paid' || orderStatus === 'confirmed' || orderStatus === 'succeeded'
-                      ? 'text-green-400'
-                      : orderStatus === 'processing' || orderStatus === 'pending'
-                      ? 'text-[#E8C547]'
-                      : 'text-[#A8B2C1]'
-                  }`}
-                >
-                  {orderStatus === 'succeeded' ? 'Confirmed' : orderStatus}
+                <span className={`capitalize font-medium ${statusDisplay.className}`}>
+                  {statusDisplay.label}
                 </span>
               </div>
 
@@ -167,7 +209,12 @@ const OrderSuccessPage = () => {
                       .join(' ')}
                   </p>
                   <p className="text-[#A8B2C1] text-xs mt-0.5">
-                    {[shippingAddress.address, shippingAddress.city, shippingAddress.zip, shippingAddress.country]
+                    {[
+                      shippingAddress.address,
+                      shippingAddress.city,
+                      shippingAddress.zip,
+                      shippingAddress.country,
+                    ]
                       .filter(Boolean)
                       .join(', ')}
                   </p>
