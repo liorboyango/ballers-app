@@ -184,11 +184,11 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data.json();
   } catch (e) {
-    data = { title: 'Ballers', body: event.data.text() };
+    data = { title: 'HaBallerim', body: event.data.text() };
   }
 
   const options = {
-    body: data.body || 'New update from Ballers!',
+    body: data.body || 'New update from HaBallerim!',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-72.png',
     vibrate: [100, 50, 100],
@@ -203,7 +203,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Ballers', options)
+    self.registration.showNotification(data.title || 'HaBallerim', options)
   );
 });
 

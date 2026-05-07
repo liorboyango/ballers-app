@@ -23,6 +23,7 @@ import {
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { ToastProvider } from './context/ToastContext';
+import { LanguageProvider, useTranslation } from './context/LanguageContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
@@ -42,26 +43,32 @@ const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage'));
 const AdminOverview = lazy(() => import('./pages/admin/AdminOverview'));
 const AdminInventory = lazy(() => import('./pages/admin/AdminInventory'));
 
-const PageLoader = () => (
-  <div className="min-h-screen bg-surface-muted flex items-center justify-center">
-    <LoadingSpinner size="xl" message="Loading..." />
-  </div>
-);
-
-const NotFound = () => (
-  <div className="min-h-[60vh] flex items-center justify-center text-center px-4">
-    <div>
-      <h1 className="text-display text-7xl text-brand mb-3">404</h1>
-      <p className="text-ink-muted text-lg mb-6">Page not found</p>
-      <Link
-        to="/"
-        className="btn-primary px-6 py-3"
-      >
-        Go Home
-      </Link>
+const PageLoader = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-screen bg-surface-muted flex items-center justify-center">
+      <LoadingSpinner size="xl" message={t('common.loading')} />
     </div>
-  </div>
-);
+  );
+};
+
+const NotFound = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center text-center px-4">
+      <div>
+        <h1 className="text-display text-7xl text-brand mb-3">{t('notFound.title')}</h1>
+        <p className="text-ink-muted text-lg mb-6">{t('notFound.message')}</p>
+        <Link
+          to="/"
+          className="btn-primary px-6 py-3"
+        >
+          {t('notFound.goHome')}
+        </Link>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Layout switcher — admin routes render without storefront chrome (their own sidebar).
@@ -137,13 +144,15 @@ function AppShell() {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <CartProvider>
-          <ToastProvider>
-            <AppShell />
-          </ToastProvider>
-        </CartProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <CartProvider>
+            <ToastProvider>
+              <AppShell />
+            </ToastProvider>
+          </CartProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </Router>
   );
 }

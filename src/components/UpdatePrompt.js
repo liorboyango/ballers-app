@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from '../context/LanguageContext';
 
 /**
  * UpdatePrompt
@@ -17,6 +18,7 @@ import React, { useState, useEffect, useCallback } from 'react';
  * @returns {JSX.Element|null}
  */
 const UpdatePrompt = () => {
+  const { t } = useTranslation();
   const [showPrompt, setShowPrompt] = useState(false);
   const [registration, setRegistration] = useState(null);
 
@@ -64,11 +66,10 @@ const UpdatePrompt = () => {
           {/* Content */}
           <div className="flex-1 min-w-0">
             <p className="text-white font-semibold text-sm">
-              Update Available
+              {t('update.title')}
             </p>
             <p className="text-[#A8B2C1] text-xs mt-1">
-              A new version of Ballers is ready. Refresh to get the latest
-              features and improvements.
+              {t('update.message', { brand: t('brand.name') })}
             </p>
           </div>
 
@@ -76,7 +77,7 @@ const UpdatePrompt = () => {
           <button
             onClick={handleDismiss}
             className="flex-shrink-0 text-[#A8B2C1] hover:text-white transition-colors"
-            aria-label="Dismiss update notification"
+            aria-label={t('update.dismiss')}
           >
             <svg
               className="w-4 h-4"
@@ -104,7 +105,7 @@ const UpdatePrompt = () => {
                        transition-colors focus:outline-none focus:ring-2
                        focus:ring-[#E8C547] focus:ring-offset-2 focus:ring-offset-[#16213E]"
           >
-            Refresh Now
+            {t('update.refresh')}
           </button>
           <button
             onClick={handleDismiss}
@@ -114,7 +115,7 @@ const UpdatePrompt = () => {
                        focus:outline-none focus:ring-2 focus:ring-[#E8C547]
                        focus:ring-offset-2 focus:ring-offset-[#16213E]"
           >
-            Later
+            {t('update.later')}
           </button>
         </div>
       </div>

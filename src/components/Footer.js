@@ -4,26 +4,28 @@
  */
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from '../context/LanguageContext';
 
 const Footer = () => {
+  const { t } = useTranslation();
   const currentYear = new Date().getFullYear();
   const [email, setEmail] = useState('');
 
   const companyLinks = [
-    { to: '/about', label: 'About Us' },
-    { to: '/careers', label: 'Careers' },
-    { to: '/press', label: 'Press' },
+    { to: '/about', label: t('footer.links.about') },
+    { to: '/careers', label: t('footer.links.careers') },
+    { to: '/press', label: t('footer.links.press') },
   ];
 
   const supportLinks = [
-    { to: '/shipping', label: 'Shipping Info' },
-    { to: '/returns', label: 'Returns' },
-    { to: '/contact', label: 'Contact Us' },
+    { to: '/shipping', label: t('footer.links.shipping') },
+    { to: '/returns', label: t('footer.links.returns') },
+    { to: '/contact', label: t('footer.links.contact') },
   ];
 
   const legalLinks = [
-    { to: '/privacy', label: 'Privacy Policy' },
-    { to: '/terms', label: 'Terms of Service' },
+    { to: '/privacy', label: t('footer.links.privacy') },
+    { to: '/terms', label: t('footer.links.terms') },
   ];
 
   return (
@@ -35,15 +37,15 @@ const Footer = () => {
               to="/"
               className="text-2xl font-extrabold tracking-tight text-brand hover:text-brand-dark transition-colors text-display"
             >
-              Ballers
+              {t('brand.name')}
             </Link>
             <p className="mt-3 text-sm text-ink-muted leading-relaxed">
-              © {currentYear} Ballers Soccer Store. All rights reserved.
+              {t('footer.rights', { year: currentYear, brand: t('brand.name') })}
             </p>
           </div>
 
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">Company</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">{t('footer.company')}</h3>
             <ul className="space-y-2.5">
               {companyLinks.map(({ to, label }) => (
                 <li key={to}>
@@ -56,7 +58,7 @@ const Footer = () => {
           </div>
 
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">Support</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">{t('footer.support')}</h3>
             <ul className="space-y-2.5">
               {supportLinks.map(({ to, label }) => (
                 <li key={to}>
@@ -69,24 +71,24 @@ const Footer = () => {
           </div>
 
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">Newsletter</h3>
-            <p className="text-sm text-ink-muted mb-3">Get the latest kits & offers in your inbox.</p>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">{t('footer.newsletter')}</h3>
+            <p className="text-sm text-ink-muted mb-3">{t('footer.newsletterCopy')}</p>
             <form
               onSubmit={(e) => { e.preventDefault(); setEmail(''); }}
               className="flex gap-2"
             >
-              <label htmlFor="footer-email" className="sr-only">Email address</label>
+              <label htmlFor="footer-email" className="sr-only">{t('footer.emailLabel')}</label>
               <input
                 id="footer-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@email.com"
+                placeholder={t('footer.newsletterPlaceholder')}
                 className="input-field flex-1 text-sm"
                 required
               />
               <button type="submit" className="btn-primary text-sm py-2.5 px-4">
-                Join
+                {t('footer.newsletterSubmit')}
               </button>
             </form>
           </div>
@@ -103,7 +105,7 @@ const Footer = () => {
             ))}
           </ul>
           <p className="text-xs text-ink-muted">
-            Official Licensed Soccer Merchandise
+            {t('footer.tagline')}
           </p>
         </div>
       </div>

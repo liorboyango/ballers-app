@@ -7,8 +7,10 @@ import { Link, useParams } from 'react-router-dom';
 import { KIT_TYPES, SIZES } from '../utils/constants';
 import { useProducts } from '../hooks/useProducts';
 import { getProductImage } from '../utils/imageUrl';
+import { useTranslation } from '../context/LanguageContext';
 
 function ProductCard({ product }) {
+  const { t } = useTranslation();
   const id = product._id || product.id;
   const img = getProductImage(product);
   const teamName =
@@ -20,13 +22,13 @@ function ProductCard({ product }) {
     <div className="card overflow-hidden flex flex-col group hover:shadow-card-hover transition-shadow">
       <div className="relative aspect-[4/5] bg-surface-sunken overflow-hidden">
         {product.isNew && (
-          <span className="absolute top-3 left-3 z-10 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-brand text-white">
-            NEW
+          <span className="absolute top-3 start-3 z-10 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-brand text-white">
+            {t('products.badgeNew')}
           </span>
         )}
         {product.isSale && (
-          <span className="absolute top-3 left-3 z-10 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-accent-danger text-white">
-            SALE
+          <span className="absolute top-3 start-3 z-10 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-accent-danger text-white">
+            {t('products.badgeSale')}
           </span>
         )}
 
@@ -58,7 +60,7 @@ function ProductCard({ product }) {
           to={`/product/${id}`}
           className="mt-4 text-sm font-semibold py-2 rounded-lg bg-surface-muted hover:bg-surface-sunken text-ink-soft transition-colors text-center"
         >
-          View & Customize
+          {t('products.view')}
         </Link>
       </div>
     </div>
@@ -79,14 +81,15 @@ function CardSkeleton() {
 }
 
 function FiltersSidebar({ filters, onFilterChange }) {
+  const { t } = useTranslation();
   return (
     <aside className="w-full lg:w-60 flex-shrink-0">
       <div className="bg-white border border-line rounded-xl p-5 sticky top-20">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">Filters</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">{t('products.filters')}</h2>
 
         <div className="mb-5">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">
-            Kit Type
+            {t('products.kitType')}
           </h3>
           <div className="space-y-1">
             <label className="flex items-center gap-2.5 cursor-pointer py-1">
@@ -98,7 +101,7 @@ function FiltersSidebar({ filters, onFilterChange }) {
                 onChange={() => onFilterChange('kitType', '')}
                 className="w-4 h-4 border-line text-brand focus:ring-brand/40"
               />
-              <span className="text-sm text-ink-soft">All Types</span>
+              <span className="text-sm text-ink-soft">{t('products.allTypes')}</span>
             </label>
             {KIT_TYPES.map((type) => (
               <label key={type.value} className="flex items-center gap-2.5 cursor-pointer py-1">
@@ -118,7 +121,7 @@ function FiltersSidebar({ filters, onFilterChange }) {
 
         <div className="mb-5">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">
-            Size
+            {t('products.size')}
           </h3>
           <div className="flex flex-wrap gap-1.5">
             {SIZES.map((size) => (
@@ -136,7 +139,7 @@ function FiltersSidebar({ filters, onFilterChange }) {
 
         <div>
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">
-            Price Range
+            {t('products.priceRange')}
           </h3>
           <div className="flex items-center gap-3">
             <span className="text-xs text-ink-muted">${filters.minPrice}</span>
@@ -157,7 +160,7 @@ function FiltersSidebar({ filters, onFilterChange }) {
           onClick={() => onFilterChange('reset', null)}
           className="btn-secondary w-full mt-5 text-sm py-2"
         >
-          Clear Filters
+          {t('products.clearFilters')}
         </button>
       </div>
     </aside>
@@ -165,6 +168,7 @@ function FiltersSidebar({ filters, onFilterChange }) {
 }
 
 function ProductsPage() {
+  const { t } = useTranslation();
   const { teamId } = useParams();
   const [filters, setFilters] = useState({ kitType: '', size: '', minPrice: 0, maxPrice: 300 });
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
@@ -206,7 +210,7 @@ function ProductsPage() {
     ? (products || []).find((p) => (p._id || p.id) === teamId)?.team?.name ||
       (products || []).find((p) => (p._id || p.id) === teamId)?.teamName
     : null;
-  const heading = teamName ? `${teamName} Kits` : 'All Kits';
+  const heading = teamName ? t('products.titleTeam', { team: teamName }) : t('products.titleAll');
 
   return (
     <div className="page-enter min-h-screen">
@@ -221,7 +225,9 @@ function ProductsPage() {
               <div>
                 <h1 className="text-display text-3xl text-ink">{heading}</h1>
                 <p className="text-sm text-ink-muted mt-1">
-                  {loading ? 'Loading…' : `${visibleProducts.length} product${visibleProducts.length === 1 ? '' : 's'}`}
+                  {loading
+                    ? t('products.loading')
+                    : t(visibleProducts.length === 1 ? 'products.countOne' : 'products.countMany', { n: visibleProducts.length })}
                 </p>
               </div>
 
@@ -232,13 +238,13 @@ function ProductsPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M6 12h12M10 20h4" />
                 </svg>
-                Filters
+                {t('products.filters')}
               </button>
             </div>
 
             <div className="relative mb-6">
               <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
+                className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={2}
@@ -251,9 +257,9 @@ function ProductsPage() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search products or teams…"
-                aria-label="Search products or teams"
-                className="w-full bg-white border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-brand/30"
+                placeholder={t('products.searchPlaceholder')}
+                aria-label={t('products.searchAria')}
+                className="w-full bg-white border border-line rounded-lg ps-9 pe-3 py-2 text-sm text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
             </div>
 
@@ -266,7 +272,7 @@ function ProductsPage() {
             {error ? (
               <div className="card p-10 text-center">
                 <p className="text-accent-danger text-sm">
-                  {typeof error === 'string' ? error : 'Failed to load products.'}
+                  {typeof error === 'string' ? error : t('products.loadFailed')}
                 </p>
               </div>
             ) : loading ? (
@@ -275,9 +281,9 @@ function ProductsPage() {
               </div>
             ) : visibleProducts.length === 0 ? (
               <div className="card p-10 text-center">
-                <p className="text-ink-muted">No products match your filters.</p>
+                <p className="text-ink-muted">{t('products.noMatch')}</p>
                 <button onClick={() => handleFilterChange('reset', null)} className="btn-secondary mt-4">
-                  Clear filters
+                  {t('products.clearFilters')}
                 </button>
               </div>
             ) : (

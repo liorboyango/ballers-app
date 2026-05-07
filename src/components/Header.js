@@ -13,18 +13,22 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
+import { useTranslation } from '../context/LanguageContext';
 
 const Header = () => {
   const { isAuthenticated, user, logout } = useAuth();
   const { totalItems, openCart } = useCart();
   const { success: showSuccess } = useToast();
+  const { t, language, setLanguage, languages } = useTranslation();
   const navigate = useNavigate();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [prevTotalItems, setPrevTotalItems] = useState(totalItems);
   const [cartBadgeAnimate, setCartBadgeAnimate] = useState(false);
   const userMenuRef = useRef(null);
+  const langMenuRef = useRef(null);
 
   const isAdmin = user?.role === 'admin';
 
@@ -39,11 +43,14 @@ const Header = () => {
     setPrevTotalItems(totalItems);
   }, [totalItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close user menu when clicking outside
+  // Close user menu / language menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setIsUserMenuOpen(false);
+      }
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target)) {
+        setIsLangMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -54,16 +61,20 @@ const Header = () => {
     logout();
     setIsUserMenuOpen(false);
     setIsMobileMenuOpen(false);
-    showSuccess('You have been logged out.');
+    showSuccess(t('common.logoutSuccess'));
     navigate('/');
   };
 
   const navLinks = [
-    { to: '/products', label: 'Shop' },
-    { to: '/teams', label: 'Teams' },
-    { to: '/custom-kits', label: 'Custom Kits' },
-    ...(isAdmin ? [{ to: '/admin', label: 'Dashboard' }] : []),
+    { to: '/products', label: t('nav.shop') },
+    { to: '/teams', label: t('nav.teams') },
+    { to: '/custom-kits', label: t('nav.customKits') },
+    ...(isAdmin ? [{ to: '/admin', label: t('nav.dashboard') }] : []),
   ];
+
+  const cartAriaKey = totalItems === 1 ? 'nav.cartAria' : 'nav.cartAriaPlural';
+  const currentLangLabel =
+    languages.find((l) => l.code === language)?.label || language.toUpperCase();
 
   const navLinkClass = ({ isActive }) =>
     `text-[15px] font-medium transition-colors ${
@@ -78,7 +89,7 @@ const Header = () => {
           <button
             className="lg:hidden text-ink-soft hover:text-ink p-2 -ml-2"
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-            aria-label="Toggle navigation menu"
+            aria-label={t('nav.toggleMenu')}
             aria-expanded={isMobileMenuOpen}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,9 +106,9 @@ const Header = () => {
             <Link
               to="/"
               className="text-2xl font-extrabold tracking-tight text-brand hover:text-brand-dark transition-colors text-display"
-              aria-label="Ballers - Home"
+              aria-label={`${t('brand.name')} - ${t('nav.home')}`}
             >
-              Ballers
+              {t('brand.name')}
             </Link>
 
             <nav className="hidden lg:flex items-center gap-7" aria-label="Main navigation">
@@ -111,11 +122,53 @@ const Header = () => {
 
           {/* Right actions */}
           <div className="flex items-center gap-1">
+            {/* Language switcher */}
+            <div className="relative" ref={langMenuRef}>
+              <button
+                onClick={() => setIsLangMenuOpen((prev) => !prev)}
+                className="flex items-center gap-1 px-2 py-1.5 text-sm font-medium text-ink-soft hover:text-brand transition-colors rounded-md"
+                aria-label={t('nav.language')}
+                aria-expanded={isLangMenuOpen}
+                aria-haspopup="true"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3 7.5 7.03 7.5 12 9.515 21 12 21zm-9-9h18" />
+                </svg>
+                <span className="hidden sm:inline text-xs uppercase">{currentLangLabel}</span>
+              </button>
+
+              {isLangMenuOpen && (
+                <div
+                  className="absolute end-0 mt-2 w-36 bg-white border border-line rounded-xl shadow-elevated py-1 z-50"
+                  role="menu"
+                >
+                  {languages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        setLanguage(lang.code);
+                        setIsLangMenuOpen(false);
+                      }}
+                      className={`w-full text-start px-4 py-2 text-sm transition-colors ${
+                        lang.code === language
+                          ? 'text-brand font-semibold bg-brand-50'
+                          : 'text-ink-soft hover:text-ink hover:bg-surface-muted'
+                      }`}
+                      role="menuitem"
+                      aria-current={lang.code === language}
+                    >
+                      {lang.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Cart button — opens CartDrawer, shows item count badge */}
             <button
               onClick={openCart}
               className="relative p-2 text-ink-soft hover:text-brand transition-colors"
-              aria-label={`Shopping cart, ${totalItems} item${totalItems !== 1 ? 's' : ''}`}
+              aria-label={t(cartAriaKey, { count: totalItems })}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.7}>
                 <path
@@ -145,7 +198,7 @@ const Header = () => {
                 <button
                   onClick={() => setIsUserMenuOpen((prev) => !prev)}
                   className="flex items-center gap-2 p-1.5 text-ink-soft hover:text-brand transition-colors"
-                  aria-label="User menu"
+                  aria-label={t('nav.userMenu')}
                   aria-expanded={isUserMenuOpen}
                   aria-haspopup="true"
                 >
@@ -156,7 +209,7 @@ const Header = () => {
 
                 {isUserMenuOpen && (
                   <div
-                    className="absolute right-0 mt-2 w-56 bg-white border border-line rounded-xl shadow-elevated py-1 z-50"
+                    className="absolute end-0 mt-2 w-56 bg-white border border-line rounded-xl shadow-elevated py-1 z-50"
                     role="menu"
                   >
                     <div className="px-4 py-3 border-b border-line">
@@ -175,15 +228,15 @@ const Header = () => {
                         className="block px-4 py-2 text-sm text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
                         role="menuitem"
                       >
-                        Admin Dashboard
+                        {t('nav.adminDashboard')}
                       </Link>
                     )}
                     <button
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
+                      className="w-full text-start px-4 py-2 text-sm text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
                       role="menuitem"
                     >
-                      Sign Out
+                      {t('nav.signOut')}
                     </button>
                   </div>
                 )}
@@ -192,7 +245,7 @@ const Header = () => {
               <Link
                 to="/login"
                 className="p-2 text-ink-soft hover:text-brand transition-colors"
-                aria-label="Sign in"
+                aria-label={t('nav.signIn')}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.7} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -233,17 +286,42 @@ const Header = () => {
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="px-3 py-2.5 rounded-lg text-[15px] font-medium text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
               >
-                Sign In
+                {t('nav.signIn')}
               </NavLink>
             )}
             {isAuthenticated && (
               <button
                 onClick={handleLogout}
-                className="text-left px-3 py-2.5 rounded-lg text-[15px] font-medium text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
+                className="text-start px-3 py-2.5 rounded-lg text-[15px] font-medium text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
               >
-                Sign Out
+                {t('nav.signOut')}
               </button>
             )}
+
+            <div className="mt-2 pt-2 border-t border-line">
+              <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                {t('nav.language')}
+              </p>
+              <div className="flex gap-2 px-3">
+                {languages.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => {
+                      setLanguage(lang.code);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      lang.code === language
+                        ? 'bg-brand text-white'
+                        : 'border border-line text-ink-soft hover:text-ink hover:bg-surface-muted'
+                    }`}
+                    aria-current={lang.code === language}
+                  >
+                    {lang.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </nav>
         </div>
       )}

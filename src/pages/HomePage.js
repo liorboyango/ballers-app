@@ -6,11 +6,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { getProductImage } from '../utils/imageUrl';
+import { useTranslation } from '../context/LanguageContext';
 
 /**
  * Stadium hero with green/dark gradient — decorative bg only, no product imagery.
  */
 function HeroSection() {
+  const { t } = useTranslation();
   return (
     <section className="container-ballers pt-6">
       <div className="relative overflow-hidden rounded-2xl">
@@ -19,23 +21,23 @@ function HeroSection() {
 
         <div className="relative px-6 sm:px-10 py-14 sm:py-20 text-center">
           <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/10 backdrop-blur text-white border border-white/20">
-            New Season Collection
+            {t('home.heroBadge')}
           </span>
           <h1 className="mt-4 text-display text-3xl sm:text-5xl text-white">
-            GEAR UP FOR THE SEASON
+            {t('home.heroTitle')}
           </h1>
           <p className="mt-3 text-white/85 max-w-2xl mx-auto text-sm sm:text-base">
-            Official replica kits for national teams and league clubs. Customize your favorite with your name and number.
+            {t('home.heroSubtitle')}
           </p>
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/teams" className="btn-primary px-6 py-3">
-              Shop Teams
+              {t('home.shopTeams')}
             </Link>
             <Link
               to="/products"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-white border border-white/40 hover:bg-white/10 transition-colors"
             >
-              View Custom
+              {t('home.viewCustom')}
             </Link>
           </div>
         </div>
@@ -50,14 +52,15 @@ const NATION_BG = ['bg-yellow-300', 'bg-sky-200', 'bg-blue-300'];
  * Three featured products as "Represent Your Nation" cards.
  */
 function RepresentYourNation({ products, loading }) {
+  const { t } = useTranslation();
   const featured = (products || []).slice(0, 3);
 
   return (
     <section className="container-ballers py-14">
       <div className="flex items-end justify-between mb-6">
-        <h2 className="text-display text-2xl sm:text-3xl text-ink">REPRESENT YOUR NATION</h2>
+        <h2 className="text-display text-2xl sm:text-3xl text-ink">{t('home.representNation')}</h2>
         <Link to="/teams" className="text-sm text-brand font-semibold hover:underline">
-          View All Teams →
+          {t('home.viewAllTeams')}
         </Link>
       </div>
 
@@ -68,7 +71,7 @@ function RepresentYourNation({ products, loading }) {
             ))
           : featured.length === 0
           ? (
-            <p className="col-span-full text-sm text-ink-muted">No products available.</p>
+            <p className="col-span-full text-sm text-ink-muted">{t('home.noProducts')}</p>
           )
           : featured.map((p, i) => {
               const img = getProductImage(p);
@@ -108,12 +111,13 @@ function RepresentYourNation({ products, loading }) {
  * the next two stack on the right.
  */
 function TrendingKits({ products, loading }) {
+  const { t } = useTranslation();
   const featured = products?.[0];
   const others = (products || []).slice(1, 3);
 
   return (
     <section className="container-ballers pb-16">
-      <h2 className="text-display text-2xl sm:text-3xl text-ink text-center mb-8">TRENDING KITS</h2>
+      <h2 className="text-display text-2xl sm:text-3xl text-ink text-center mb-8">{t('home.trending')}</h2>
 
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -124,7 +128,7 @@ function TrendingKits({ products, loading }) {
           </div>
         </div>
       ) : !featured ? (
-        <p className="text-center text-sm text-ink-muted">No products available.</p>
+        <p className="text-center text-sm text-ink-muted">{t('home.noProducts')}</p>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Featured */}

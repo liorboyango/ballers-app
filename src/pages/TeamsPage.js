@@ -6,10 +6,16 @@ import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { getProductImage } from '../utils/imageUrl';
+import { useTranslation } from '../context/LanguageContext';
 
 const GROUPS = ['A', 'B', 'C', 'D', 'E', 'F'];
-const JERSEY_TYPE_LABEL = { home: 'Home Kit', away: 'Away Kit', third: 'Third Kit', special: 'Special' };
 const JERSEY_TYPES = ['home', 'away', 'third', 'special'];
+const JERSEY_TYPE_KEY = {
+  home: 'teams.typeHome',
+  away: 'teams.typeAway',
+  third: 'teams.typeThird',
+  special: 'teams.typeSpecial',
+};
 
 const CARD_BG_BY_TYPE = {
   home: 'bg-yellow-100',
@@ -33,22 +39,23 @@ function FilterCheckbox({ label, checked, onChange }) {
 }
 
 function FiltersPanel({ teamOptions, filters, toggle }) {
+  const { t } = useTranslation();
   return (
     <aside className="w-full lg:w-60 flex-shrink-0">
       <div className="bg-white border border-line rounded-xl p-5">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">Filters</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-ink mb-4">{t('teams.filters')}</h2>
 
         {teamOptions.length > 0 && (
           <div className="mb-5">
             <h3 className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">
-              National Teams
+              {t('teams.nationalTeams')}
             </h3>
-            {teamOptions.map((t) => (
+            {teamOptions.map((name) => (
               <FilterCheckbox
-                key={t}
-                label={t}
-                checked={filters.teams.includes(t)}
-                onChange={() => toggle('teams', t)}
+                key={name}
+                label={name}
+                checked={filters.teams.includes(name)}
+                onChange={() => toggle('teams', name)}
               />
             ))}
           </div>
@@ -56,7 +63,7 @@ function FiltersPanel({ teamOptions, filters, toggle }) {
 
         <div className="mb-5">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">
-            Group
+            {t('teams.group')}
           </h3>
           <div className="grid grid-cols-3 gap-1.5">
             {GROUPS.map((g) => (
@@ -69,7 +76,7 @@ function FiltersPanel({ teamOptions, filters, toggle }) {
                     : 'bg-white text-ink-soft border-line hover:border-ink-faint'
                 }`}
               >
-                Gr {g}
+                {t('teams.groupPrefix')} {g}
               </button>
             ))}
           </div>
@@ -77,14 +84,14 @@ function FiltersPanel({ teamOptions, filters, toggle }) {
 
         <div>
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">
-            Jersey Type
+            {t('teams.jerseyType')}
           </h3>
-          {JERSEY_TYPES.map((t) => (
+          {JERSEY_TYPES.map((type) => (
             <FilterCheckbox
-              key={t}
-              label={JERSEY_TYPE_LABEL[t]}
-              checked={filters.types.includes(t)}
-              onChange={() => toggle('types', t)}
+              key={type}
+              label={t(JERSEY_TYPE_KEY[type])}
+              checked={filters.types.includes(type)}
+              onChange={() => toggle('types', type)}
             />
           ))}
         </div>
@@ -93,9 +100,11 @@ function FiltersPanel({ teamOptions, filters, toggle }) {
   );
 }
 
-function getBadge(product) {
-  if (product.isNew) return { label: 'NEW ARRIVAL', tone: 'new' };
-  if (product.isLimited || product.edition === 'world-cup') return { label: 'WORLD CUP EDITION', tone: 'edition' };
+function useBadge(product) {
+  const { t } = useTranslation();
+  if (product.isNew) return { label: t('teams.badgeNew'), tone: 'new' };
+  if (product.isLimited || product.edition === 'world-cup')
+    return { label: t('teams.badgeWorldCup'), tone: 'edition' };
   return null;
 }
 
@@ -109,10 +118,12 @@ function getKitType(p) {
 }
 
 function KitCard({ kit }) {
-  const badge = getBadge(kit);
+  const { t } = useTranslation();
+  const badge = useBadge(kit);
   const img = getProductImage(kit);
   const id = kit._id || kit.id;
-  const sub = kit.subtitle || (getKitType(kit) ? JERSEY_TYPE_LABEL[getKitType(kit)] : 'Authentic Match Jersey');
+  const kitType = getKitType(kit);
+  const sub = kit.subtitle || (kitType ? t(JERSEY_TYPE_KEY[kitType]) : t('teams.defaultSubtitle'));
 
   const badgeClass =
     badge?.tone === 'edition' ? 'bg-brand-900 text-white'
@@ -153,7 +164,7 @@ function KitCard({ kit }) {
           type="button"
           className="mt-4 text-sm font-semibold py-2 rounded-lg bg-surface-muted hover:bg-surface-sunken text-ink-soft transition-colors"
         >
-          Quick Add
+          {t('teams.quickAdd')}
         </button>
       </div>
     </div>
@@ -174,6 +185,7 @@ function CardSkeleton() {
 }
 
 function TeamsPage() {
+  const { t } = useTranslation();
   const [filters, setFilters] = useState({ teams: [], groups: [], types: [] });
   const [sort, setSort] = useState('Featured');
   const [search, setSearch] = useState('');
@@ -230,28 +242,28 @@ function TeamsPage() {
           <div className="flex-1 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-display text-3xl text-ink">Browse Teams</h1>
+                <h1 className="text-display text-3xl text-ink">{t('teams.title')}</h1>
                 <p className="text-sm text-ink-muted mt-1">
-                  Official kits from national teams and league clubs.
+                  {t('teams.subtitle')}
                 </p>
               </div>
               <label className="flex items-center gap-2 text-sm text-ink-muted">
-                Sort by:
+                {t('teams.sortBy')}
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                   className="bg-white border border-line rounded-md px-2 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/30"
                 >
-                  <option>Featured</option>
-                  <option>Price: Low to High</option>
-                  <option>Price: High to Low</option>
+                  <option value="Featured">{t('teams.sortFeatured')}</option>
+                  <option value="Price: Low to High">{t('teams.sortPriceAsc')}</option>
+                  <option value="Price: High to Low">{t('teams.sortPriceDesc')}</option>
                 </select>
               </label>
             </div>
 
             <div className="relative mb-6">
               <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
+                className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={2}
@@ -264,16 +276,16 @@ function TeamsPage() {
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search teams or kits…"
-                aria-label="Search teams or kits"
-                className="w-full bg-white border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-brand/30"
+                placeholder={t('teams.searchPlaceholder')}
+                aria-label={t('teams.searchAria')}
+                className="w-full bg-white border border-line rounded-lg ps-9 pe-3 py-2 text-sm text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-brand/30"
               />
             </div>
 
             {error ? (
               <div className="card p-10 text-center">
                 <p className="text-accent-danger text-sm">
-                  {typeof error === 'string' ? error : 'Failed to load kits.'}
+                  {typeof error === 'string' ? error : t('teams.loadFailed')}
                 </p>
               </div>
             ) : loading ? (
@@ -282,7 +294,7 @@ function TeamsPage() {
               </div>
             ) : visible.length === 0 ? (
               <div className="card p-10 text-center">
-                <p className="text-ink-muted">No kits match your filters.</p>
+                <p className="text-ink-muted">{t('teams.noMatch')}</p>
                 <button
                   className="btn-secondary mt-4"
                   onClick={() => {
@@ -290,7 +302,7 @@ function TeamsPage() {
                     setSearch('');
                   }}
                 >
-                  Clear filters
+                  {t('teams.clearFilters')}
                 </button>
               </div>
             ) : (
