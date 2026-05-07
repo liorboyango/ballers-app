@@ -1,22 +1,35 @@
 /**
  * CategoryTree
- * Renders the full Yupoo category tree with search, expand/collapse all,
- * select all / clear all, and selection summary.
+ * Renders the full Yupoo category tree with:
+ * - Real-time search filter with text highlighting
+ * - Expand All / Collapse All controls
+ * - Select All / Clear All actions
+ * - Loading skeleton state (while fetching)
+ * - Error banner with Retry action
+ * - Too-many-selected warning (>50 categories)
+ * - Last-fetched timestamp display
+ * - Accessible ARIA tree role markup
  *
  * @param {Object} props
- * @param {Object[]} props.categories - Flat-top category array (each may have subcategories)
+ * @param {Object[]} props.categories - Top-level category array (each may have subcategories)
  * @param {Set<string>} props.selected - Set of selected category IDs
  * @param {function} props.onSelectionChange - (newSelected: Set<string>) => void
- * @param {boolean} [props.loading] - Show skeleton state
- * @param {string|null} [props.error] - Error message
+ * @param {boolean} [props.loading=false] - Show skeleton state
+ * @param {string|null} [props.error=null] - Error message to display
  * @param {function} [props.onRefresh] - Callback to re-fetch categories
- * @param {string|null} [props.lastFetched] - ISO timestamp of last fetch
+ * @param {string|null} [props.lastFetched=null] - ISO timestamp of last successful fetch
  */
 import React, { useState, useCallback, useMemo } from 'react';
 import CategoryTreeNode from './CategoryTreeNode';
 
-/** Collect all IDs from a node tree (node + all descendants) */
-const collectIds = (node) => {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Recursively collect all IDs from a node tree (node + all descendants).
+ * @param {Object} node
+ * @returns {string[]}
+ */
+export function collectIds(node) {
   const ids = [node.id];
   if (Array.isArray(node.subcategories)) {
     node.subcategories.forEach((child) => {
@@ -24,12 +37,17 @@ const collectIds = (node) => {
     });
   }
   return ids;
-};
+}
 
-/** Filter tree by search query — keeps parents of matching nodes */
-const filterTree = (nodes, query) => {
+/**
+ * Filter tree by search query — keeps parents of matching nodes.
+ * @param {Object[]} nodes
+ * @param {string} query
+ * @returns {Object[]}
+ */
+export function filterTree(nodes, query) {
   if (!query || !query.trim()) return nodes;
-  const q = query.toLowerCase();
+  const q = query.toLowerCase().trim();
   return nodes.reduce((acc, node) => {
     const nameMatch = node.name.toLowerCase().includes(q);
     const filteredChildren = filterTree(node.subcategories || [], query);
@@ -38,20 +56,59 @@ const filterTree = (nodes, query) => {
     }
     return acc;
   }, []);
-};
+}
 
-/** Count total selected leaf/parent nodes */
-const countSelected = (selected) => selected.size;
+/**
+ * Format an ISO timestamp into a human-readable relative label.
+ * @param {string} isoString
+ * @returns {string}
+ */
+export function formatRelativeTime(isoString) {
+  if (!isoString) return null;
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(isoString).toLocaleDateString();
+}
 
-function SkeletonRow({ depth = 0 }) {
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
+
+/** Single skeleton row used while categories are loading */
+function SkeletonRow({ depth = 0, widthPct = 70 }) {
   return (
-    <div className="flex items-center gap-2 py-2 px-2" style={{ paddingLeft: depth * 16 + 8 }}>
+    <div
+      className="flex items-center gap-2 py-2 px-2"
+      style={{ paddingLeft: depth * 16 + 8 }}
+      aria-hidden="true"
+    >
       <div className="w-4 h-4 rounded skeleton" />
       <div className="w-4 h-4 rounded skeleton" />
-      <div className="h-3.5 rounded skeleton flex-1" style={{ maxWidth: `${80 - depth * 10}%` }} />
+      <div
+        className="h-3.5 rounded skeleton"
+        style={{ width: `${widthPct}%` }}
+      />
     </div>
   );
 }
+
+/** Full skeleton block shown while the first fetch is in progress */
+function LoadingSkeleton() {
+  return (
+    <div className="p-2 space-y-1" aria-label="Loading categories" aria-busy="true">
+      <SkeletonRow depth={0} widthPct={65} />
+      <SkeletonRow depth={1} widthPct={50} />
+      <SkeletonRow depth={1} widthPct={55} />
+      <SkeletonRow depth={0} widthPct={70} />
+      <SkeletonRow depth={1} widthPct={45} />
+      <SkeletonRow depth={0} widthPct={60} />
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 function CategoryTree({
   categories = [],
@@ -63,28 +120,38 @@ function CategoryTree({
   lastFetched = null,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [forceExpanded, setForceExpanded] = useState(false);
 
+  // Filtered tree based on search query
   const filteredCategories = useMemo(
     () => filterTree(categories, searchQuery),
     [categories, searchQuery]
   );
 
+  // All IDs in the tree (for select-all)
   const allIds = useMemo(() => {
     const ids = new Set();
-    categories.forEach((cat) => collectIds(cat).forEach((id) => ids.add(id)));
+    categories.forEach((cat) =>
+      collectIds(cat).forEach((id) => ids.add(id))
+    );
     return ids;
   }, [categories]);
 
-  const selectedCount = countSelected(selected);
+  const selectedCount = selected.size;
   const tooManySelected = selectedCount > 50;
 
+  // ─── Handlers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Toggle a node and all its descendants.
+   * If all are already selected → deselect all; else → select all.
+   */
   const handleToggle = useCallback(
     (node) => {
       const ids = collectIds(node);
       const newSelected = new Set(selected);
-      // If the parent is selected, deselect all; otherwise select all
-      const allSelected = ids.every((id) => newSelected.has(id));
-      if (allSelected) {
+      const allAlreadySelected = ids.every((id) => newSelected.has(id));
+      if (allAlreadySelected) {
         ids.forEach((id) => newSelected.delete(id));
       } else {
         ids.forEach((id) => newSelected.add(id));
@@ -103,41 +170,56 @@ function CategoryTree({
   }, [onSelectionChange]);
 
   const handleExpandAll = useCallback(() => {
-    // Trigger re-render by toggling search with space, or just use a key
-    // Expand all is handled at node level via searchQuery effect
-    // Here we use a trick: temporarily set a non-empty search then clear
+    setForceExpanded(true);
+    // Allow nodes to react to forceExpanded, then release control
+    // so individual nodes can still be collapsed afterwards.
+    setTimeout(() => setForceExpanded(false), 100);
   }, []);
 
-  const relativeTime = useMemo(() => {
-    if (!lastFetched) return null;
-    const diff = Date.now() - new Date(lastFetched).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins} min ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return new Date(lastFetched).toLocaleDateString();
-  }, [lastFetched]);
+  const handleSearchChange = useCallback((e) => {
+    setSearchQuery(e.target.value);
+  }, []);
+
+  const handleSearchClear = useCallback(() => {
+    setSearchQuery('');
+  }, []);
+
+  // Relative time label for the last-fetched timestamp
+  const relativeTime = useMemo(
+    () => formatRelativeTime(lastFetched),
+    [lastFetched]
+  );
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+    <div className="flex flex-col h-full gap-3">
+      {/* ── Header row ── */}
+      <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-ink">Browse Categories</h3>
-          {relativeTime && (
-            <p className="text-xs text-ink-faint mt-0.5">Last fetched: {relativeTime}</p>
+          {relativeTime && !loading && (
+            <p className="text-xs text-ink-faint mt-0.5">
+              Last fetched: {relativeTime}
+            </p>
+          )}
+          {loading && categories.length === 0 && (
+            <p className="text-xs text-ink-faint mt-0.5">Fetching categories…</p>
           )}
         </div>
+
+        {/* Refresh button */}
         <button
           type="button"
           onClick={onRefresh}
           disabled={loading}
-          className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 disabled:opacity-60"
+          className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 disabled:opacity-60 flex-shrink-0"
           aria-label="Refresh categories"
         >
           <svg
-            className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`}
+            className={`w-3.5 h-3.5 ${
+              loading ? 'animate-spin' : ''
+            }`}
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
@@ -154,45 +236,101 @@ function CategoryTree({
         </button>
       </div>
 
-      {/* Search + Expand All */}
-      <div className="flex items-center gap-2 mb-3">
+      {/* ── Search + Expand All ── */}
+      <div className="flex items-center gap-2">
+        {/* Search input */}
         <div className="relative flex-1">
           <svg
-            className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+            className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none"
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
             viewBox="0 0 24 24"
             aria-hidden="true"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
           <input
             type="search"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearchChange}
             placeholder="Search categories…"
-            className="input-field pl-9 text-sm w-full"
+            className="input-field pl-9 pr-8 text-sm w-full"
             aria-label="Search categories"
+            aria-controls="category-tree-list"
           />
+          {/* Clear button */}
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={handleSearchClear}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"
+              aria-label="Clear search"
+            >
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          )}
         </div>
+
+        {/* Expand All button */}
+        <button
+          type="button"
+          onClick={handleExpandAll}
+          disabled={loading || categories.length === 0}
+          className="btn-secondary py-1.5 px-3 text-xs flex-shrink-0 disabled:opacity-50"
+          aria-label="Expand all categories"
+        >
+          Expand All
+        </button>
       </div>
 
-      {/* Error banner */}
+      {/* ── Error banner ── */}
       {error && (
         <div
           role="alert"
-          className="flex items-center gap-2 p-3 mb-3 bg-red-50 border border-red-200 rounded-lg text-accent-danger text-sm"
+          className={
+            'flex items-center gap-2 p-3 ' +
+            'bg-red-50 border border-red-200 rounded-lg ' +
+            'text-accent-danger text-sm'
+          }
         >
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          <svg
+            className="w-4 h-4 flex-shrink-0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
           </svg>
           <span className="flex-1">{error}</span>
           {onRefresh && (
             <button
               type="button"
               onClick={onRefresh}
-              className="underline font-semibold ml-auto hover:no-underline"
+              className="underline font-semibold ml-auto hover:no-underline flex-shrink-0"
             >
               Retry
             </button>
@@ -200,37 +338,54 @@ function CategoryTree({
         </div>
       )}
 
-      {/* Too many selected warning */}
+      {/* ── Too-many-selected warning ── */}
       {tooManySelected && (
         <div
-          role="alert"
-          className="flex items-center gap-2 p-3 mb-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm"
+          role="status"
+          aria-live="polite"
+          className={
+            'flex items-center gap-2 p-3 ' +
+            'bg-amber-50 border border-amber-200 rounded-lg ' +
+            'text-amber-700 text-sm'
+          }
         >
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          <svg
+            className="w-4 h-4 flex-shrink-0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+            />
           </svg>
           <span>
-            <strong>{selectedCount} categories</strong> selected — import may take 5+ minutes.
+            <strong>{selectedCount} categories</strong> selected — import may
+            take 5+ minutes.
           </span>
         </div>
       )}
 
-      {/* Tree */}
+      {/* ── Tree list ── */}
       <div
-        className="flex-1 overflow-y-auto border border-line rounded-lg bg-white"
+        id="category-tree-list"
+        className="flex-1 overflow-y-auto border border-line rounded-lg bg-white min-h-[200px]"
         role="tree"
         aria-label="Yupoo category tree"
         aria-multiselectable="true"
+        aria-busy={loading}
       >
         {loading && categories.length === 0 ? (
-          <div className="p-2 space-y-1">
-            {[...Array(6)].map((_, i) => (
-              <SkeletonRow key={i} depth={i % 3 === 0 ? 0 : 1} />
-            ))}
-          </div>
+          <LoadingSkeleton />
         ) : filteredCategories.length === 0 ? (
-          <div className="py-10 text-center text-ink-muted text-sm">
-            {searchQuery ? 'No categories match your search.' : 'No categories available.'}
+          <div className="py-10 text-center text-ink-muted text-sm px-4">
+            {searchQuery
+              ? `No categories match "${searchQuery}".`
+              : 'No categories available. Click Refresh to try again.'}
           </div>
         ) : (
           <div className="p-1">
@@ -242,38 +397,51 @@ function CategoryTree({
                 onToggle={handleToggle}
                 searchQuery={searchQuery}
                 depth={0}
+                forceExpanded={forceExpanded}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* Footer: selection summary + actions */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-line">
-        <span className="text-sm text-ink-soft">
+      {/* ── Footer: selection summary + actions ── */}
+      <div className="flex items-center justify-between pt-2 border-t border-line">
+        <span className="text-sm text-ink-soft" aria-live="polite">
           {selectedCount > 0 ? (
-            <span>
-              <span className="font-semibold text-ink">{selectedCount}</span> categor{selectedCount === 1 ? 'y' : 'ies'} selected
-            </span>
+            <>
+              <span className="font-semibold text-ink">{selectedCount}</span>{' '}
+              categor{selectedCount === 1 ? 'y' : 'ies'} selected
+            </>
           ) : (
             'No categories selected'
           )}
         </span>
-        <div className="flex gap-2">
+
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={handleSelectAll}
             disabled={loading || allIds.size === 0}
-            className="text-xs text-brand font-semibold hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+            className={
+              'text-xs font-semibold transition-colors ' +
+              'text-brand hover:text-brand-dark hover:underline ' +
+              'disabled:opacity-40 disabled:cursor-not-allowed'
+            }
           >
             Select All
           </button>
-          <span className="text-ink-faint">·</span>
+          <span className="text-ink-faint text-xs" aria-hidden="true">
+            ·
+          </span>
           <button
             type="button"
             onClick={handleClearAll}
             disabled={selectedCount === 0}
-            className="text-xs text-ink-soft font-semibold hover:text-ink hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+            className={
+              'text-xs font-semibold transition-colors ' +
+              'text-ink-soft hover:text-ink hover:underline ' +
+              'disabled:opacity-40 disabled:cursor-not-allowed'
+            }
           >
             Clear All
           </button>
