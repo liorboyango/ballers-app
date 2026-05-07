@@ -5,7 +5,7 @@
  * Falls back to localStorage for guest users.
  */
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
-import { getCart, addToCart, updateCartItem, removeFromCart } from '../services/cartApi';
+import { getCart, addToCart, updateCartItem as apiUpdateCartItem, removeFromCart as apiRemoveFromCart } from '../services/cartApi';
 import { AuthContext } from './AuthContext';
 
 export const CartContext = createContext(null);
@@ -33,6 +33,15 @@ export const CartProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [cartId, setCartId] = useState(null);
+
+  // Cart drawer open/close state
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  /** Open the cart drawer */
+  const openCart = useCallback(() => setIsCartOpen(true), []);
+
+  /** Close the cart drawer */
+  const closeCart = useCallback(() => setIsCartOpen(false), []);
 
   /**
    * Update totals from items array
@@ -133,7 +142,7 @@ export const CartProvider = ({ children }) => {
     if (isAuthenticated) {
       setLoading(true);
       try {
-        const result = await updateCartItem({ itemId, ...updates });
+        const result = await apiUpdateCartItem({ itemId, ...updates });
         const cartData = result.data;
         setItems(cartData.items || []);
         setTotalItems(cartData.totalItems || 0);
@@ -164,7 +173,7 @@ export const CartProvider = ({ children }) => {
     if (isAuthenticated) {
       setLoading(true);
       try {
-        const result = await removeFromCart(itemId);
+        const result = await apiRemoveFromCart(itemId);
         const cartData = result.data;
         setItems(cartData.items || []);
         setTotalItems(cartData.totalItems || 0);
@@ -201,10 +210,20 @@ export const CartProvider = ({ children }) => {
     totalPrice,
     cartId,
     loading,
+    // isLoading alias used by CartDrawer
+    isLoading: loading,
     error,
+    // Cart drawer state
+    isCartOpen,
+    openCart,
+    closeCart,
+    // Primary action methods
     addItem,
     updateItem,
     removeItem,
+    // Aliases used by CartDrawer
+    updateCartItem: updateItem,
+    removeFromCart: removeItem,
     clearCart,
     syncCart,
     clearError: () => setError(null),

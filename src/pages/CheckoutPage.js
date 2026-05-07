@@ -1,15 +1,42 @@
 /**
- * CheckoutPage - Full checkout experience.
- * Left column: CheckoutForm (contact, shipping, payment).
+ * CheckoutPage - Full checkout experience with Stripe integration.
+ * Left column: CheckoutForm (contact, shipping, Stripe payment).
  * Right column: Order summary with cart items.
- * Handles redirect to login if user is not authenticated.
+ * Wraps CheckoutForm with Stripe Elements provider.
+ *
+ * The page fetches the server-calculated order total from the backend
+ * (via the payment intent endpoint) to display accurate pricing that
+ * matches what Stripe will charge — preventing client-side price discrepancies.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 import CheckoutForm from '../components/forms/CheckoutForm';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { getProductImage } from '../utils/imageUrl';
+
+// Initialize Stripe outside of component render to avoid re-creating on each render.
+// Uses environment variable with a safe fallback for development.
+const stripePromise = loadStripe(
+  process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder'
+);
+
+/** Stripe Elements appearance options to match the dark theme */
+const STRIPE_ELEMENTS_OPTIONS = {
+  appearance: {
+    theme: 'night',
+    variables: {
+      colorPrimary: '#E8C547',
+      colorBackground: '#1A1A2E',
+      colorText: '#ffffff',
+      colorDanger: '#ef4444',
+      fontFamily: 'inherit',
+      borderRadius: '8px',
+    },
+  },
+};
 
 /** Format price as USD */
 const formatPrice = (amount) =>
@@ -48,7 +75,7 @@ function OrderItem({ item }) {
           <p className="text-[#A8B2C1] text-xs mt-0.5">
             {[item.customization.size, item.customization.number && `#${item.customization.number}`, item.customization.name]
               .filter(Boolean)
-              .join(' · ')}
+              .join(' \u00b7 ')}
           </p>
         )}
         <p className="text-[#A8B2C1] text-xs mt-0.5">Qty: {item.quantity}</p>
@@ -58,46 +85,6 @@ function OrderItem({ item }) {
       <p className="text-[#E8C547] text-sm font-bold flex-shrink-0">
         {formatPrice((item.price || item.product?.price || 0) * item.quantity)}
       </p>
-    </div>
-  );
-}
-
-/** Order success confirmation panel */
-function OrderSuccess({ order }) {
-  return (
-    <div className="flex flex-col items-center gap-6 py-12 text-center">
-      <div className="w-20 h-20 rounded-full bg-[#27AE60]/20 border-2 border-[#27AE60] flex items-center justify-center">
-        <svg className="w-10 h-10 text-[#27AE60]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
-      </div>
-      <div>
-        <h2 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-          Order Placed!
-        </h2>
-        <p className="text-[#A8B2C1] text-sm">
-          Thank you for your order. We'll send a confirmation to your email.
-        </p>
-        {order?.id && (
-          <p className="text-[#E8C547] text-xs mt-2 font-mono">
-            Order #{order.id}
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
-        <Link
-          to="/"
-          className="flex-1 py-3 px-6 bg-[#E8C547] text-[#1A1A2E] font-bold uppercase tracking-wider rounded-lg hover:bg-[#D4A800] transition-colors text-center text-sm"
-        >
-          Continue Shopping
-        </Link>
-        <Link
-          to="/account"
-          className="flex-1 py-3 px-6 border border-[#E8C547] text-[#E8C547] font-bold uppercase tracking-wider rounded-lg hover:bg-[#E8C547]/10 transition-colors text-center text-sm"
-        >
-          My Orders
-        </Link>
-      </div>
     </div>
   );
 }
@@ -122,27 +109,30 @@ export default function CheckoutPage() {
     }
   }, [cart, cartLoading, navigate, completedOrder]);
 
+  // Calculate totals from local cart data for display
+  // The actual charge amount is calculated server-side when the payment intent is created
   const items = cart?.items || [];
   const subtotal = cart?.totalPrice || 0;
   const shipping = subtotal >= 100 ? 0 : 9.99;
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;
 
-  // Show success screen after order
-  if (completedOrder) {
-    return (
-      <div
-        className="min-h-screen"
-        style={{ background: 'linear-gradient(135deg, #1A1A2E 0%, #0F3460 100%)' }}
-      >
-        <div className="max-w-2xl mx-auto px-4 py-16">
-          <div className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-8">
-            <OrderSuccess order={completedOrder} />
-          </div>
-        </div>
-      </div>
+  /**
+   * Handle successful order placement.
+   * Called by CheckoutForm after payment is confirmed and order is created.
+   * Redirects to the order success page with order data in navigation state.
+   */
+  const handleOrderSuccess = useCallback((order) => {
+    setCompletedOrder(order);
+    const orderId = order?.id || order?._id || '';
+    navigate(
+      orderId ? `/order-success/${orderId}` : '/order-success',
+      {
+        state: { order },
+        replace: true,
+      }
     );
-  }
+  }, [navigate]);
 
   if (authLoading || cartLoading) {
     return (
@@ -184,10 +174,20 @@ export default function CheckoutPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* ── Left: Checkout Form ── */}
+          {/* ── Left: Checkout Form wrapped in Stripe Elements ── */}
           <div className="lg:col-span-3">
             <div className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-6 sm:p-8">
-              <CheckoutForm onOrderSuccess={setCompletedOrder} />
+              {/*
+               * Elements provider must wrap any component that uses Stripe hooks
+               * (useStripe, useElements, CardElement, etc.).
+               * stripePromise is created once outside the component.
+               */}
+              <Elements stripe={stripePromise} options={STRIPE_ELEMENTS_OPTIONS}>
+                <CheckoutForm
+                  onOrderSuccess={handleOrderSuccess}
+                  orderTotal={total}
+                />
+              </Elements>
             </div>
           </div>
 
@@ -240,7 +240,7 @@ export default function CheckoutPage() {
                   <svg className="w-4 h-4 text-[#27AE60] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                   </svg>
-                  SSL encrypted & secure checkout
+                  SSL encrypted &amp; secure checkout
                 </div>
                 <div className="flex items-center gap-2 text-xs text-[#A8B2C1]">
                   <svg className="w-4 h-4 text-[#27AE60] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -5,8 +5,47 @@
 import apiClient from './api';
 
 /**
- * Create a new order
+ * Create a Stripe PaymentIntent for the current cart.
+ * The backend fetches the cart server-side and calculates the total,
+ * preventing client-side price tampering.
+ *
+ * @returns {Promise<{
+ *   clientSecret: string,
+ *   paymentIntentId: string,
+ *   amount: number,
+ *   currency: string,
+ *   orderSummary: {
+ *     items: Array,
+ *     subtotal: number,
+ *     shippingCost: number,
+ *     total: number,
+ *     itemCount: number
+ *   }
+ * }>}
+ * @throws {Error} 400 if cart is empty or items out of stock
+ * @throws {Error} 401 if unauthenticated
+ * @throws {Error} 502 if Stripe is unavailable
+ */
+export const createPaymentIntent = async () => {
+  // No request body needed — cart is fetched server-side from the authenticated user's session
+  const response = await apiClient.post('/orders/create-payment-intent');
+  // Backend returns: { status: 'success', data: { clientSecret, paymentIntentId, amount, currency, orderSummary } }
+  const payload = response.data?.data || response.data;
+  return {
+    clientSecret: payload.clientSecret || payload.client_secret,
+    paymentIntentId: payload.paymentIntentId || payload.payment_intent_id,
+    amount: payload.amount,
+    currency: payload.currency || 'usd',
+    orderSummary: payload.orderSummary || null,
+  };
+};
+
+/**
+ * Create a new order after successful Stripe payment.
+ * Called after stripe.confirmCardPayment succeeds.
+ *
  * @param {Object} orderData - Order data
+ * @param {string} orderData.paymentIntentId - Stripe PaymentIntent ID
  * @param {Object} orderData.shippingAddress - Shipping address
  * @param {string} orderData.shippingAddress.firstName - First name
  * @param {string} orderData.shippingAddress.lastName - Last name
@@ -17,11 +56,9 @@ import apiClient from './api';
  * @param {string} orderData.shippingAddress.country - Country
  * @param {string} [orderData.shippingAddress.phone] - Phone number
  * @param {Object} orderData.paymentInfo - Payment information
- * @param {string} orderData.paymentInfo.method - Payment method (card|paypal)
- * @param {string} [orderData.paymentInfo.cardNumber] - Card number
- * @param {string} [orderData.paymentInfo.cardHolder] - Card holder name
- * @param {string} [orderData.paymentInfo.expiryMonth] - Expiry month
- * @param {string} [orderData.paymentInfo.expiryYear] - Expiry year
+ * @param {string} orderData.paymentInfo.method - Payment method (card)
+ * @param {string} orderData.paymentInfo.paymentIntentId - Stripe PaymentIntent ID
+ * @param {string} orderData.paymentInfo.status - Payment status
  * @returns {Promise<{message: string, order: Order}>}
  */
 export const createOrder = async (orderData) => {

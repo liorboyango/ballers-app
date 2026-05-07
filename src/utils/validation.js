@@ -1,6 +1,10 @@
 /**
  * Zod validation schemas for all forms in the Ballers application.
  * Used with React Hook Form's zodResolver.
+ *
+ * Note: Card field validation has been removed from checkoutSchema.
+ * Stripe's CardElement handles all card validation client-side in a
+ * PCI-compliant manner. The checkout form only validates contact/shipping.
  */
 import { z } from 'zod';
 
@@ -45,6 +49,8 @@ export const registerSchema = z
 // ---------------------------------------------------------------------------
 // Checkout schema
 // ---------------------------------------------------------------------------
+// Card fields are intentionally excluded — Stripe's CardElement handles
+// card number, expiry, and CVV validation in a PCI-compliant iframe.
 
 export const checkoutSchema = z.object({
   // Contact / Shipping
@@ -82,60 +88,6 @@ export const checkoutSchema = z.object({
   country: z
     .string()
     .min(1, 'Country is required'),
-
-  // Payment
-  paymentMethod: z.enum(['card', 'paypal'], {
-    required_error: 'Please select a payment method',
-  }),
-  cardNumber: z.string().optional(),
-  cardHolder: z.string().optional(),
-  expiryMonth: z.string().optional(),
-  expiryYear: z.string().optional(),
-  cvv: z.string().optional(),
-}).superRefine((data, ctx) => {
-  if (data.paymentMethod === 'card') {
-    // Card number: 16 digits (spaces allowed)
-    if (!data.cardNumber || data.cardNumber.replace(/\s/g, '').length < 16) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Please enter a valid 16-digit card number',
-        path: ['cardNumber'],
-      });
-    }
-    if (!data.cardHolder || data.cardHolder.trim().length < 2) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Card holder name is required',
-        path: ['cardHolder'],
-      });
-    }
-    if (!data.expiryMonth || !/^(0[1-9]|1[0-2])$/.test(data.expiryMonth)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Enter a valid month (MM)',
-        path: ['expiryMonth'],
-      });
-    }
-    const currentYear = new Date().getFullYear() % 100;
-    if (
-      !data.expiryYear ||
-      !/^\d{2}$/.test(data.expiryYear) ||
-      parseInt(data.expiryYear, 10) < currentYear
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Enter a valid expiry year (YY)',
-        path: ['expiryYear'],
-      });
-    }
-    if (!data.cvv || !/^\d{3,4}$/.test(data.cvv)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Enter a valid CVV (3-4 digits)',
-        path: ['cvv'],
-      });
-    }
-  }
 });
 
 // Country list for the checkout form
