@@ -93,7 +93,7 @@ function DetailSkeleton() {
 function ProductDetailPage() {
   const { id } = useParams();
   const { product, loading, error } = useProduct(id);
-  const { addToCart } = useCart();
+  const { addItem: addToCart } = useCart();
 
   const [selectedSize, setSelectedSize] = useState('');
   const [activeImage, setActiveImage] = useState(0);
