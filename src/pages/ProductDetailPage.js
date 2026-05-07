@@ -120,6 +120,8 @@ function ProductDetailPage() {
     try {
       await addToCart({
         productId: product._id || product.id,
+        product,
+        price: product.price,
         quantity: 1,
         customization: {
           size: selectedSize,

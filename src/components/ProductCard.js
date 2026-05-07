@@ -51,6 +51,8 @@ const ProductCard = ({ product }) => {
     try {
       await addToCart({
         productId,
+        product,
+        price,
         quantity: 1,
         customization: { size: selectedSize },
       });
