@@ -19,17 +19,17 @@ function HeroSection() {
 
         <div className="relative px-6 sm:px-10 py-14 sm:py-20 text-center">
           <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/10 backdrop-blur text-white border border-white/20">
-            World Cup 2026
+            New Season Collection
           </span>
           <h1 className="mt-4 text-display text-3xl sm:text-5xl text-white">
-            GEAR UP FOR THE WORLD CUP
+            GEAR UP FOR THE SEASON
           </h1>
           <p className="mt-3 text-white/85 max-w-2xl mx-auto text-sm sm:text-base">
-            Official replica kits for every nation. Customize your favorite with your name and number.
+            Official replica kits for national teams and league clubs. Customize your favorite with your name and number.
           </p>
           <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/teams" className="btn-primary px-6 py-3">
-              Shop National Teams
+              Shop Teams
             </Link>
             <Link
               to="/products"

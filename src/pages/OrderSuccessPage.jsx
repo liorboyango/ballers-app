@@ -249,7 +249,7 @@ const OrderSuccessPage = () => {
         <p className="text-[#A8B2C1] text-lg mb-8">
           {statusDisplay.isFailed
             ? 'We encountered an issue with your payment. Please see details below.'
-            : 'Thank you for your purchase. Your World Cup kit is on its way!'}
+            : 'Thank you for your purchase. Your kit is on its way!'}
         </p>
 
         {/* ── Status-specific banners ── */}

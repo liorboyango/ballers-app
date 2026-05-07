@@ -103,7 +103,7 @@ const Footer = () => {
             ))}
           </ul>
           <p className="text-xs text-ink-muted">
-            Official World Cup Licensed Merchandise
+            Official Licensed Soccer Merchandise
           </p>
         </div>
       </div>

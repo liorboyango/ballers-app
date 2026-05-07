@@ -1,7 +1,7 @@
 {
-  "name": "Ballers - World Cup Kits",
+  "name": "Ballers - Soccer Kits",
   "short_name": "Ballers",
-  "description": "Official replica World Cup 2026 soccer kits with custom number and name personalization.",
+  "description": "Official replica soccer kits for national teams and league clubs, with custom number and name personalization.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
@@ -64,14 +64,14 @@
     {
       "name": "Shop Kits",
       "short_name": "Shop",
-      "description": "Browse World Cup soccer kits",
+      "description": "Browse soccer kits",
       "url": "/products",
       "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
     },
     {
       "name": "View Teams",
       "short_name": "Teams",
-      "description": "Browse World Cup 2026 teams",
+      "description": "Browse national & league teams",
       "url": "/teams",
       "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
     },

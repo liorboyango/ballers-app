@@ -1,12 +1,12 @@
 # Ballers App
 
-> **Wear the Game** - Official World Cup 2026 Soccer Kits
+> **Wear the Game** - Official Soccer Kits for National Teams & League Clubs
 
-A PWA-enabled React e-commerce application for customizable World Cup soccer team T-shirts.
+A PWA-enabled React e-commerce application for customizable soccer team jerseys — national teams and league clubs.
 
 ## Features
 
-- 🏆 Browse all 48 World Cup 2026 teams
+- 🏆 Browse national teams and league clubs
 - 👕 Shop official replica kits (Home, Away, Third)
 - ✂️ Customize jerseys with name and number
 - 🛒 Shopping cart with persistent state
@@ -103,7 +103,7 @@ src/
 | Path | Page | Description |
 |---|---|---|
 | `/` | Home | Hero, featured teams, most wanted kits |
-| `/teams` | Teams | All 48 WC2026 teams |
+| `/teams` | Teams | National teams and league clubs |
 | `/products` | Products | All products |
 | `/products/:teamId` | Products | Products filtered by team |
 | `/product/:id` | Product Detail | Full product page + customization |

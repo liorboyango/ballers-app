@@ -181,7 +181,7 @@ function ProductFormModal({ open, onClose, onCreated }) {
               Add New Product
             </h2>
             <p className="text-xs text-ink-muted mt-0.5">
-              Create a new World Cup kit listing.
+              Create a new kit listing.
             </p>
           </div>
           <button

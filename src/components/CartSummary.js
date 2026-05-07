@@ -55,7 +55,7 @@ const CartSummary = ({ showCheckoutButton = true, compact = false }) => {
         <div className="text-5xl mb-4" aria-hidden="true">🛒</div>
         <h3 className="text-white font-bold text-lg mb-2">Your cart is empty</h3>
         <p className="text-ballers-muted text-sm mb-6">
-          Add some World Cup kits to get started!
+          Add some kits to get started!
         </p>
         <Link
           to="/products"

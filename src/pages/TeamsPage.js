@@ -1,5 +1,5 @@
 /**
- * Teams Page — "World Cup Edition" listing matching teams_screen design.
+ * Teams Page — listing of all team kits (national & league) matching teams_screen design.
  * Products and their imagery are loaded from the backend via useProducts.
  */
 import React, { useState, useMemo } from 'react';
@@ -176,6 +176,7 @@ function CardSkeleton() {
 function TeamsPage() {
   const [filters, setFilters] = useState({ teams: [], groups: [], types: [] });
   const [sort, setSort] = useState('Featured');
+  const [search, setSearch] = useState('');
 
   const apiParams = useMemo(() => {
     const p = { limit: 24 };
@@ -204,6 +205,7 @@ function TeamsPage() {
   }, [products]);
 
   const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return (products || []).filter((p) => {
       if (filters.teams.length && !filters.teams.includes(getTeamName(p))) return false;
       if (filters.groups.length) {
@@ -211,9 +213,13 @@ function TeamsPage() {
         if (!filters.groups.includes(g)) return false;
       }
       if (filters.types.length && !filters.types.includes(getKitType(p))) return false;
+      if (q) {
+        const haystack = `${p.name || ''} ${getTeamName(p)}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
-  }, [products, filters]);
+  }, [products, filters, search]);
 
   return (
     <div className="page-enter min-h-screen">
@@ -222,11 +228,11 @@ function TeamsPage() {
           <FiltersPanel teamOptions={teamOptions} filters={filters} toggle={toggle} />
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-display text-3xl text-ink">World Cup Edition</h1>
+                <h1 className="text-display text-3xl text-ink">Browse Teams</h1>
                 <p className="text-sm text-ink-muted mt-1">
-                  Gear up with the official national team kits.
+                  Official kits from national teams and league clubs.
                 </p>
               </div>
               <label className="flex items-center gap-2 text-sm text-ink-muted">
@@ -241,6 +247,27 @@ function TeamsPage() {
                   <option>Price: High to Low</option>
                 </select>
               </label>
+            </div>
+
+            <div className="relative mb-6">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+              </svg>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search teams or kits…"
+                aria-label="Search teams or kits"
+                className="w-full bg-white border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
             </div>
 
             {error ? (
@@ -258,7 +285,10 @@ function TeamsPage() {
                 <p className="text-ink-muted">No kits match your filters.</p>
                 <button
                   className="btn-secondary mt-4"
-                  onClick={() => setFilters({ teams: [], groups: [], types: [] })}
+                  onClick={() => {
+                    setFilters({ teams: [], groups: [], types: [] });
+                    setSearch('');
+                  }}
                 >
                   Clear filters
                 </button>

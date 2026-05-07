@@ -168,6 +168,7 @@ function ProductsPage() {
   const { teamId } = useParams();
   const [filters, setFilters] = useState({ kitType: '', size: '', minPrice: 0, maxPrice: 300 });
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
   const apiParams = useMemo(() => {
     const p = { limit: 24 };
@@ -184,10 +185,22 @@ function ProductsPage() {
   const handleFilterChange = (key, value) => {
     if (key === 'reset') {
       setFilters({ kitType: '', size: '', minPrice: 0, maxPrice: 300 });
+      setSearch('');
     } else {
       setFilters((prev) => ({ ...prev, [key]: value }));
     }
   };
+
+  const visibleProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return products || [];
+    return (products || []).filter((p) => {
+      const teamName =
+        (typeof p.team === 'object' && p.team?.name) || p.teamName || '';
+      const haystack = `${p.name || ''} ${teamName}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [products, search]);
 
   const teamName = teamId
     ? (products || []).find((p) => (p._id || p.id) === teamId)?.team?.name ||
@@ -208,7 +221,7 @@ function ProductsPage() {
               <div>
                 <h1 className="text-display text-3xl text-ink">{heading}</h1>
                 <p className="text-sm text-ink-muted mt-1">
-                  {loading ? 'Loading…' : `${(products || []).length} product${(products || []).length === 1 ? '' : 's'}`}
+                  {loading ? 'Loading…' : `${visibleProducts.length} product${visibleProducts.length === 1 ? '' : 's'}`}
                 </p>
               </div>
 
@@ -221,6 +234,27 @@ function ProductsPage() {
                 </svg>
                 Filters
               </button>
+            </div>
+
+            <div className="relative mb-6">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+              </svg>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search products or teams…"
+                aria-label="Search products or teams"
+                className="w-full bg-white border border-line rounded-lg pl-9 pr-3 py-2 text-sm text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
             </div>
 
             {isFilterDrawerOpen && (
@@ -239,7 +273,7 @@ function ProductsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 {[0, 1, 2, 3, 4, 5].map((i) => <CardSkeleton key={i} />)}
               </div>
-            ) : (products || []).length === 0 ? (
+            ) : visibleProducts.length === 0 ? (
               <div className="card p-10 text-center">
                 <p className="text-ink-muted">No products match your filters.</p>
                 <button onClick={() => handleFilterChange('reset', null)} className="btn-secondary mt-4">
@@ -248,7 +282,7 @@ function ProductsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                {(products || []).map((product) => (
+                {visibleProducts.map((product) => (
                   <ProductCard key={product._id || product.id} product={product} />
                 ))}
               </div>

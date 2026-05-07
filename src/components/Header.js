@@ -3,7 +3,7 @@
  *
  * Features:
  *  - White surface, green Ballers logo
- *  - Nav: Shop · National Teams · Custom Kits · Dashboard (admin-only)
+ *  - Nav: Shop · Teams · Custom Kits · Dashboard (admin-only)
  *  - Cart icon + count badge (animates on item add), opens CartDrawer on click
  *  - Account icon (login or user menu)
  *  - Mobile hamburger
@@ -60,7 +60,7 @@ const Header = () => {
 
   const navLinks = [
     { to: '/products', label: 'Shop' },
-    { to: '/teams', label: 'National Teams' },
+    { to: '/teams', label: 'Teams' },
     { to: '/custom-kits', label: 'Custom Kits' },
     ...(isAdmin ? [{ to: '/admin', label: 'Dashboard' }] : []),
   ];

@@ -186,7 +186,7 @@ function AdminInventory() {
   return (
     <AdminLayout
       title="Inventory Management"
-      subtitle="Manage your World Cup kits, track stock levels, and update pricing."
+      subtitle="Manage your kits, track stock levels, and update pricing."
       actions={
         activeTab === 'products' ? (
           <>

@@ -55,7 +55,7 @@ const TeamList = ({ limit, showFilters = true, compact = false }) => {
   };
 
   return (
-    <section className="team-list" aria-label="World Cup Teams">
+    <section className="team-list" aria-label="Teams">
       {/* Filters */}
       {showFilters && (
         <div className="flex flex-col sm:flex-row gap-3 mb-8">

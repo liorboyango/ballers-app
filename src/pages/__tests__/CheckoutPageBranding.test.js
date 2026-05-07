@@ -80,7 +80,6 @@ describe('CheckoutPage', () => {
   it('renders trust badges', () => {
     renderCheckoutPage();
     expect(screen.getByText(/ssl encrypted/i)).toBeInTheDocument();
-    expect(screen.getByText(/world cup 2026/i)).toBeInTheDocument();
     expect(screen.getByText(/free returns/i)).toBeInTheDocument();
   });
 
