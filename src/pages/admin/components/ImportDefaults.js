@@ -1,6 +1,6 @@
 /**
  * ImportDefaults
- * Configures the default values applied to all products imported from Yupoo:
+ * Configures the default values applied to all products imported from the supplier:
  * price, kitType, stock, and sizes.
  *
  * Updated in Task 3 to:

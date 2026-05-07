@@ -8,7 +8,7 @@
  *  - Redirects non-admin users (role !== 'admin') back to /
  *
  * Task 5 additions:
- *  - Added /admin/import shortcut route (redirects to /admin/inventory?tab=yupoo-import)
+ *  - Added /admin/import shortcut route (redirects to /admin/inventory?tab=supplier-import)
  *    allowing deep links from emails / notifications directly to the import tab.
  */
 import React, { Suspense, lazy } from 'react';
@@ -110,7 +110,7 @@ function AppShell() {
               }
             />
             {/*
-              Shortcut: /admin/import navigates directly to the Yupoo import tab.
+              Shortcut: /admin/import navigates directly to the supplier import tab.
               Wrapped in AdminRoute so unauthenticated users are redirected to /login.
             */}
             <Route
@@ -118,7 +118,7 @@ function AppShell() {
               element={
                 <AdminRoute>
                   <Navigate
-                    to="/admin/inventory?tab=yupoo-import"
+                    to="/admin/inventory?tab=supplier-import"
                     replace
                   />
                 </AdminRoute>

@@ -1,6 +1,6 @@
 /**
  * useCategoryTree
- * Custom React hook that manages the full lifecycle of Yupoo category
+ * Custom React hook that manages the full lifecycle of supplier category
  * fetching and selection state.
  *
  * Returns:
@@ -15,7 +15,7 @@
  *  - selectedTree: only the selected nodes (for the Review stage)
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { getYupooCategories } from '../services/yupooApi';
+import { getSupplierCategories } from '../services/supplierApi';
 
 // ─── Tree utilities (mirrored from CategoryTree for independence) ─────────────
 
@@ -81,7 +81,7 @@ export function useCategoryTree({ autoFetch = true } = {}) {
     setLoading(true);
     setError(null);
     try {
-      const data = await getYupooCategories();
+      const data = await getSupplierCategories();
       // Normalize: API may return { categories } or { data: { categories } }
       const cats =
         data?.categories ??

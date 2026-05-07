@@ -11,11 +11,11 @@
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useCategoryTree } from '../../hooks/useCategoryTree';
-import * as yupooApi from '../../services/yupooApi';
+import * as supplierApi from '../../services/supplierApi';
 
 // ── Mock the API ──────────────────────────────────────────────────────────────
 
-jest.mock('../../services/yupooApi');
+jest.mock('../../services/supplierApi');
 
 const MOCK_CATEGORIES = [
   {
@@ -49,7 +49,7 @@ describe('useCategoryTree', () => {
   // ── Initial state ────────────────────────────────────────────────────────
 
   it('has correct initial state', () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: [], cached: false, cachedAt: null });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: [], cached: false, cachedAt: null });
     const { result } = renderHook(() => useCategoryTree({ autoFetch: false }));
     expect(result.current.categories).toEqual([]);
     expect(result.current.loading).toBe(false);
@@ -61,13 +61,12 @@ describe('useCategoryTree', () => {
   // ── Successful fetch ─────────────────────────────────────────────────────
 
   it('fetches categories on mount when autoFetch=true', async () => {
-    yupooApi.getYupooCategories.mockResolvedValue({
+    supplierApi.getSupplierCategories.mockResolvedValue({
       categories: MOCK_CATEGORIES,
       cached: false,
       cachedAt: new Date().toISOString(),
     });
     const { result } = renderHook(() => useCategoryTree());
-    // Should start loading
     expect(result.current.loading).toBe(true);
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -79,7 +78,7 @@ describe('useCategoryTree', () => {
   // ── Error fetch ──────────────────────────────────────────────────────────
 
   it('sets error state when fetch fails', async () => {
-    yupooApi.getYupooCategories.mockRejectedValue({ message: 'Network error' });
+    supplierApi.getSupplierCategories.mockRejectedValue({ message: 'Network error' });
     const { result } = renderHook(() => useCategoryTree());
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -91,7 +90,7 @@ describe('useCategoryTree', () => {
   // ── Toggle node ──────────────────────────────────────────────────────────
 
   it('toggleNode selects a leaf node', async () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
     const { result } = renderHook(() => useCategoryTree());
     await waitFor(() => !result.current.loading);
     act(() => {
@@ -101,25 +100,22 @@ describe('useCategoryTree', () => {
   });
 
   it('toggleNode selects parent and all children', async () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
     const { result } = renderHook(() => useCategoryTree());
     await waitFor(() => !result.current.loading);
     act(() => {
       result.current.toggleNode(MOCK_CATEGORIES[0]); // La Liga (parent)
     });
-    // Should select parent + both children
     expect(result.current.selected.has('cat-1')).toBe(true);
     expect(result.current.selected.has('sub-1')).toBe(true);
     expect(result.current.selected.has('sub-2')).toBe(true);
   });
 
   it('toggleNode deselects all when all are already selected', async () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
     const { result } = renderHook(() => useCategoryTree());
     await waitFor(() => !result.current.loading);
-    // First select all
     act(() => result.current.toggleNode(MOCK_CATEGORIES[0]));
-    // Then deselect
     act(() => result.current.toggleNode(MOCK_CATEGORIES[0]));
     expect(result.current.selected.has('cat-1')).toBe(false);
     expect(result.current.selected.has('sub-1')).toBe(false);
@@ -128,16 +124,15 @@ describe('useCategoryTree', () => {
   // ── Select All / Clear All ───────────────────────────────────────────────
 
   it('selectAll selects every node in the tree', async () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
     const { result } = renderHook(() => useCategoryTree());
     await waitFor(() => !result.current.loading);
     act(() => result.current.selectAll());
-    // 2 top-level + 3 sub-categories
     expect(result.current.selected.size).toBe(5);
   });
 
   it('clearAll empties the selection', async () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
     const { result } = renderHook(() => useCategoryTree());
     await waitFor(() => !result.current.loading);
     act(() => result.current.selectAll());
@@ -148,7 +143,7 @@ describe('useCategoryTree', () => {
   // ── tooManySelected ──────────────────────────────────────────────────────
 
   it('tooManySelected is true when more than 50 categories selected', () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: [] });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: [] });
     const { result } = renderHook(() => useCategoryTree({ autoFetch: false }));
     act(() => {
       const bigSet = new Set(Array.from({ length: 51 }, (_, i) => `id-${i}`));
@@ -160,10 +155,9 @@ describe('useCategoryTree', () => {
   // ── selectedTree ─────────────────────────────────────────────────────────
 
   it('selectedTree only includes selected nodes and their selected children', async () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
     const { result } = renderHook(() => useCategoryTree());
     await waitFor(() => !result.current.loading);
-    // Select one sub-category of cat-1
     act(() => {
       result.current.setSelected(new Set(['sub-1']));
     });
@@ -177,12 +171,12 @@ describe('useCategoryTree', () => {
   // ── Manual re-fetch ──────────────────────────────────────────────────────
 
   it('fetchCategories can be called manually to re-fetch', async () => {
-    yupooApi.getYupooCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
+    supplierApi.getSupplierCategories.mockResolvedValue({ categories: MOCK_CATEGORIES });
     const { result } = renderHook(() => useCategoryTree({ autoFetch: false }));
-    expect(yupooApi.getYupooCategories).not.toHaveBeenCalled();
+    expect(supplierApi.getSupplierCategories).not.toHaveBeenCalled();
     act(() => { result.current.fetchCategories(); });
     await waitFor(() => !result.current.loading);
-    expect(yupooApi.getYupooCategories).toHaveBeenCalledTimes(1);
+    expect(supplierApi.getSupplierCategories).toHaveBeenCalledTimes(1);
     expect(result.current.categories).toHaveLength(2);
   });
 });

@@ -1,6 +1,6 @@
 /**
  * CategoryTree
- * Renders the full Yupoo category tree with:
+ * Renders the full supplier category tree with:
  * - Real-time search filter with text highlighting
  * - Expand All / Collapse All controls
  * - Select All / Clear All actions
@@ -375,7 +375,7 @@ function CategoryTree({
         id="category-tree-list"
         className="flex-1 overflow-y-auto border border-line rounded-lg bg-white min-h-[200px]"
         role="tree"
-        aria-label="Yupoo category tree"
+        aria-label="Supplier category tree"
         aria-multiselectable="true"
         aria-busy={loading}
       >

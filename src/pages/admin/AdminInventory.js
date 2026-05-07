@@ -1,10 +1,10 @@
 /**
  * AdminInventory — Inventory Management screen.
  * Pulls live products from GET /api/products.
- * Includes tabs: Products (existing), Import from Yupoo (new).
+ * Includes tabs: Products (existing), Import from Supplier (new).
  *
  * Task 5 additions:
- * - URL query-param based tab persistence (?tab=yupoo-import) for deep linking
+ * - URL query-param based tab persistence (?tab=supplier-import) for deep linking
  * - Reads initial tab from the URL on mount; syncs back on tab switch
  * - Proper aria-controls / aria-labelledby on tabpanels
  */
@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from './AdminLayout';
 import ProductFormModal from './ProductFormModal';
-import YupooImportPage from './YupooImportPage';
+import SupplierImportPage from './SupplierImportPage';
 import { useProducts } from '../../hooks/useProducts';
 import useDebounce from '../../hooks/useDebounce';
 import { useToast } from '../../context/ToastContext';
@@ -55,7 +55,7 @@ const stockStatus = (stock) => {
 };
 
 /** Valid tab values */
-const VALID_TABS = ['products', 'yupoo-import'];
+const VALID_TABS = ['products', 'supplier-import'];
 
 function StockBar({ stock, max, status }) {
   const pct = Math.min(100, (stock / Math.max(1, max)) * 100);
@@ -102,7 +102,7 @@ function AdminInventory() {
   }, [getTabFromUrl]);
 
   const [hasUsedImport, setHasUsedImport] = useState(() => {
-    return localStorage.getItem('ballers_yupoo_import_used') === 'true';
+    return localStorage.getItem('ballers_supplier_import_used') === 'true';
   });
 
   const [query, setQuery] = useState('');
@@ -147,9 +147,9 @@ function AdminInventory() {
       { replace: true }
     );
 
-    if (tab === 'yupoo-import' && !hasUsedImport) {
+    if (tab === 'supplier-import' && !hasUsedImport) {
       setHasUsedImport(true);
-      localStorage.setItem('ballers_yupoo_import_used', 'true');
+      localStorage.setItem('ballers_supplier_import_used', 'true');
     }
   }, [hasUsedImport, location.pathname, location.search, navigate]);
 
@@ -237,17 +237,17 @@ function AdminInventory() {
         </button>
         <button
           role="tab"
-          aria-selected={activeTab === 'yupoo-import'}
-          aria-controls="tab-panel-yupoo"
-          id="tab-yupoo"
-          onClick={() => handleTabChange('yupoo-import')}
+          aria-selected={activeTab === 'supplier-import'}
+          aria-controls="tab-panel-supplier"
+          id="tab-supplier"
+          onClick={() => handleTabChange('supplier-import')}
           className={`px-4 py-2.5 text-sm font-semibold rounded-t-md border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
-            activeTab === 'yupoo-import'
+            activeTab === 'supplier-import'
               ? 'border-brand text-brand bg-brand-50/40'
               : 'border-transparent text-ink-muted hover:text-ink hover:border-line'
           }`}
         >
-          Import from Yupoo
+          Import from Supplier
           {!hasUsedImport && (
             <span className="ml-0.5 text-[10px] bg-brand text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
               New
@@ -401,15 +401,15 @@ function AdminInventory() {
         </div>
       )}
 
-      {/* Yupoo Import Tab */}
-      {activeTab === 'yupoo-import' && (
+      {/* Supplier Import Tab */}
+      {activeTab === 'supplier-import' && (
         <div
-          id="tab-panel-yupoo"
+          id="tab-panel-supplier"
           role="tabpanel"
-          aria-labelledby="tab-yupoo"
+          aria-labelledby="tab-supplier"
           tabIndex={0}
         >
-          <YupooImportPage />
+          <SupplierImportPage />
         </div>
       )}
 

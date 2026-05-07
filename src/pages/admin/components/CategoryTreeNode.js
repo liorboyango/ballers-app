@@ -1,6 +1,6 @@
 /**
  * CategoryTreeNode
- * Renders a single node in the Yupoo category tree.
+ * Renders a single node in the supplier category tree.
  * Supports:
  * - Indeterminate checkbox state for partial child selection
  * - Keyboard navigation: Space=toggle, ArrowRight=expand, ArrowLeft=collapse

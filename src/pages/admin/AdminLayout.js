@@ -3,10 +3,10 @@
  * Matches the layout in admin_panel_overview_screen.png and admin_panel_inventory_screen.png.
  *
  * Task 5 additions:
- * - "Import from Yupoo" quick-link shortcut in the sidebar under Inventory
+ * - "Import from Supplier" quick-link shortcut in the sidebar under Inventory
  *   (visible only when on the /admin/inventory route).
  * - Sidebar Inventory link correctly highlights when on both the products
- *   and yupoo-import tabs (uses startsWith match).
+ *   and supplier-import tabs (uses startsWith match).
  * - useLocation used to detect active import tab for sub-nav display.
  */
 import React from 'react';
@@ -85,9 +85,9 @@ function AdminLayout({ title, subtitle, actions, children }) {
 
   // Detect if we're currently on the Inventory page (to show sub-nav)
   const isOnInventory = location.pathname === '/admin/inventory';
-  const isOnYupooTab =
+  const isOnSupplierTab =
     isOnInventory &&
-    new URLSearchParams(location.search).get('tab') === 'yupoo-import';
+    new URLSearchParams(location.search).get('tab') === 'supplier-import';
 
   return (
     <div className="min-h-screen bg-surface-muted flex">
@@ -125,7 +125,7 @@ function AdminLayout({ title, subtitle, actions, children }) {
               </NavLink>
 
               {/*
-               * Sub-navigation: show Import from Yupoo shortcut under Inventory
+               * Sub-navigation: show Import from Supplier shortcut under Inventory
                * when the user is on the /admin/inventory page.
                */}
               {n.to === '/admin/inventory' && isOnInventory && (
@@ -133,11 +133,11 @@ function AdminLayout({ title, subtitle, actions, children }) {
                   <Link
                     to="/admin/inventory"
                     className={`flex items-center gap-2 pl-5 pr-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      !isOnYupooTab
+                      !isOnSupplierTab
                         ? 'text-brand bg-brand-50'
                         : 'text-ink-soft hover:text-ink hover:bg-surface-sunken'
                     }`}
-                    aria-current={!isOnYupooTab ? 'page' : undefined}
+                    aria-current={!isOnSupplierTab ? 'page' : undefined}
                   >
                     <svg
                       className="w-3 h-3 flex-shrink-0"
@@ -152,13 +152,13 @@ function AdminLayout({ title, subtitle, actions, children }) {
                     Products
                   </Link>
                   <Link
-                    to="/admin/inventory?tab=yupoo-import"
+                    to="/admin/inventory?tab=supplier-import"
                     className={`flex items-center gap-2 pl-5 pr-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      isOnYupooTab
+                      isOnSupplierTab
                         ? 'text-brand bg-brand-50'
                         : 'text-ink-soft hover:text-ink hover:bg-surface-sunken'
                     }`}
-                    aria-current={isOnYupooTab ? 'page' : undefined}
+                    aria-current={isOnSupplierTab ? 'page' : undefined}
                   >
                     <svg
                       className="w-3 h-3 flex-shrink-0"
@@ -170,7 +170,7 @@ function AdminLayout({ title, subtitle, actions, children }) {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
-                    Import from Yupoo
+                    Import from Supplier
                   </Link>
                 </div>
               )}

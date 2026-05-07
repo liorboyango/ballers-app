@@ -1,6 +1,6 @@
 /**
  * CrawlProgress
- * Displays the real-time progress of an ongoing Yupoo crawl import.
+ * Displays the real-time progress of an ongoing supplier crawl import.
  *
  * Enhanced in Task 4 with:
  * - Animated shimmer progress bar during crawl
@@ -18,6 +18,7 @@
  * @param {Array}       props.selectedCategories - Categories that were submitted
  * @param {function}    props.onDone         - Called when user clicks Done
  * @param {function}    props.onViewProducts - Called when user clicks View Products
+ * @param {function}    [props.onRetry]      - Called when user clicks Retry Import (shown on failure)
  */
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 
@@ -261,6 +262,7 @@ function CrawlProgress({
   selectedCategories = [],
   onDone,
   onViewProducts,
+  onRetry,
 }) {
   // Flatten selected categories (top-level + subcategories) for display
   const allCategories = useMemo(() => {
@@ -527,6 +529,29 @@ function CrawlProgress({
             className="btn-secondary py-2 px-4 text-sm"
           >
             View Products
+          </button>
+        )}
+        {isComplete && onRetry && (hasTopError || isPartial) && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="btn-secondary py-2 px-4 text-sm flex items-center gap-1.5"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 4v6h6M20 20v-6h-6M4 10a8 8 0 0114-4M20 14a8 8 0 01-14 4"
+              />
+            </svg>
+            Retry Import
           </button>
         )}
         <button
