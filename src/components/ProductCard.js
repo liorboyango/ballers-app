@@ -10,7 +10,7 @@ import { getProductImage } from '../utils/imageUrl';
  */
 const ProductCard = ({ product }) => {
   const navigate = useNavigate();
-  const { addToCart } = useCart();
+  const { addItem: addToCart } = useCart();
   const [selectedSize, setSelectedSize] = useState('');
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
@@ -51,6 +51,8 @@ const ProductCard = ({ product }) => {
     try {
       await addToCart({
         productId,
+        product,
+        price,
         quantity: 1,
         customization: { size: selectedSize },
       });
