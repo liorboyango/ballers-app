@@ -348,11 +348,14 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       <section aria-labelledby="section-payment">
         <SectionHeading number="3" title="Payment" />
 
-        {/* Credit Card indicator */}
+        {/*
+         * Credit Card indicator — Stripe only (no PayPal tab per architecture plan).
+         * Shows accepted card brands.
+         */}
         <div
           className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[#E8C547] bg-[#E8C547]/10 mb-5"
           role="status"
-          aria-label="Payment method: Credit Card"
+          aria-label="Payment method: Credit Card via Stripe"
         >
           <svg
             className="w-5 h-5 text-[#E8C547] flex-shrink-0"
@@ -370,30 +373,34 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
           </svg>
           <span className="text-[#E8C547] text-sm font-medium">Credit Card</span>
           <span className="ml-auto flex items-center gap-1.5 text-xs text-[#A8B2C1]">
-            Visa &bull; Mastercard &bull; Amex
+            Visa &bull; Mastercard &bull; Amex &bull; Discover
           </span>
         </div>
 
         {/* Stripe CardElement wrapper */}
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-white" id="card-element-label">
+          <label
+            className="text-sm font-medium text-white"
+            id="card-element-label"
+            htmlFor="card-element"
+          >
             Card details
           </label>
 
           {/*
            * CardElement wrapper styled to match existing inputs.
            * focus-within ring changes color based on error state.
+           * The CardElement renders inside a Stripe-hosted iframe for PCI compliance.
            */}
           <div
-            className={`
-              w-full px-4 py-3 rounded-lg bg-[#1A1A2E]
-              border transition-colors focus-within:outline-none
-              focus-within:ring-1
-              ${cardError
+            id="card-element"
+            className={[
+              'w-full px-4 py-3 rounded-lg bg-[#1A1A2E]',
+              'border transition-colors focus-within:outline-none focus-within:ring-1',
+              cardError
                 ? 'border-red-500 focus-within:border-red-500 focus-within:ring-red-500/30'
-                : 'border-[#2A3550] focus-within:border-[#E8C547] focus-within:ring-[#E8C547]/30'
-              }
-            `}
+                : 'border-[#2A3550] focus-within:border-[#E8C547] focus-within:ring-[#E8C547]/30',
+            ].join(' ')}
             role="group"
             aria-labelledby="card-element-label"
           >
@@ -403,7 +410,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
             />
           </div>
 
-          {/* Inline card error */}
+          {/* Inline card error — shown below the CardElement */}
           {cardError && (
             <p
               role="alert"
@@ -426,14 +433,25 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
           )}
 
           {/* Card brand logos row */}
-          <div className="flex items-center gap-2 mt-1" aria-label="Accepted card brands">
-            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">Visa</span>
-            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">Mastercard</span>
-            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">Amex</span>
-            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">Discover</span>
+          <div
+            className="flex items-center gap-2 mt-1"
+            aria-label="Accepted card brands"
+          >
+            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">
+              Visa
+            </span>
+            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">
+              Mastercard
+            </span>
+            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">
+              Amex
+            </span>
+            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">
+              Discover
+            </span>
           </div>
 
-          {/* Security badge */}
+          {/* Security badge — reassures users their card data is safe */}
           <div className="flex items-center gap-2 text-xs text-[#A8B2C1] mt-1">
             <svg
               className="w-4 h-4 text-[#27AE60] flex-shrink-0"
@@ -454,7 +472,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
         </div>
       </section>
 
-      {/* Submit button */}
+      {/* ── Submit button ── */}
       <button
         type="submit"
         disabled={isSubmitting || !stripe}
