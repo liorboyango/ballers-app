@@ -2,9 +2,24 @@
  * App.js
  * Root application component with React Router configuration.
  * Wraps all pages with AuthProvider, CartProvider, and ToastProvider.
+ *
+ * Admin routes are protected by AdminRoute which:
+ *  - Redirects unauthenticated users to /login (with 'from' state for return)
+ *  - Redirects non-admin users (role !== 'admin') back to /
+ *
+ * Task 5 additions:
+ *  - Added /admin/import shortcut route (redirects to /admin/inventory?tab=yupoo-import)
+ *    allowing deep links from emails / notifications directly to the import tab.
  */
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Link } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  Link,
+} from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { ToastProvider } from './context/ToastContext';
@@ -64,6 +79,7 @@ function AppShell() {
       <Suspense fallback={<PageLoader />}>
         <div className="flex-1">
           <Routes>
+            {/* ── Public routes ── */}
             <Route path="/" element={<HomePage />} />
             <Route path="/teams" element={<TeamsPage />} />
             <Route path="/products" element={<ProductsPage />} />
@@ -76,7 +92,7 @@ function AppShell() {
             <Route path="/order-success/:id" element={<OrderSuccessPage />} />
             <Route path="/order-success" element={<OrderSuccessPage />} />
 
-            {/* Admin (protected) */}
+            {/* ── Admin routes (protected: must be authenticated + role=admin) ── */}
             <Route
               path="/admin"
               element={
@@ -90,6 +106,21 @@ function AppShell() {
               element={
                 <AdminRoute>
                   <AdminInventory />
+                </AdminRoute>
+              }
+            />
+            {/*
+              Shortcut: /admin/import navigates directly to the Yupoo import tab.
+              Wrapped in AdminRoute so unauthenticated users are redirected to /login.
+            */}
+            <Route
+              path="/admin/import"
+              element={
+                <AdminRoute>
+                  <Navigate
+                    to="/admin/inventory?tab=yupoo-import"
+                    replace
+                  />
                 </AdminRoute>
               }
             />
