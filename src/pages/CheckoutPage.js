@@ -1,42 +1,20 @@
 /**
- * CheckoutPage - Full checkout experience with Stripe integration.
- * Left column: CheckoutForm (contact, shipping, Stripe payment).
+ * CheckoutPage - Full checkout experience with Rapyd integration.
+ * Left column: CheckoutForm (contact, shipping, Rapyd payment).
  * Right column: Order summary with cart items.
- * Wraps CheckoutForm with Stripe Elements provider.
+ * Wraps CheckoutForm with Rapyd Elements provider.
  *
  * The page fetches the server-calculated order total from the backend
  * (via the payment intent endpoint) to display accurate pricing that
- * matches what Stripe will charge — preventing client-side price discrepancies.
+ * matches what Rapyd will charge — preventing client-side price discrepancies.
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Elements } from '@stripe/react-stripe-js';
-import { loadStripe } from '@stripe/stripe-js';
+import { RapydProvider } from '@rapyd/client-web';
 import CheckoutForm from '../components/forms/CheckoutForm';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { getProductImage } from '../utils/imageUrl';
-
-// Initialize Stripe outside of component render to avoid re-creating on each render.
-// Uses environment variable with a safe fallback for development.
-const stripePromise = loadStripe(
-  process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder'
-);
-
-/** Stripe Elements appearance options to match the dark theme */
-const STRIPE_ELEMENTS_OPTIONS = {
-  appearance: {
-    theme: 'night',
-    variables: {
-      colorPrimary: '#E8C547',
-      colorBackground: '#1A1A2E',
-      colorText: '#ffffff',
-      colorDanger: '#ef4444',
-      fontFamily: 'inherit',
-      borderRadius: '8px',
-    },
-  },
-};
 
 /** Format price as USD */
 const formatPrice = (amount) =>
@@ -109,8 +87,8 @@ export default function CheckoutPage() {
     }
   }, [cartItems, cartLoading, navigate, completedOrder]);
 
-  // Calculate totals from local cart data for display
-  // The actual charge amount is calculated server-side when the payment intent is created
+  // Calculate totals from local cart data for display.
+  // The actual charge amount is calculated server-side when the payment intent is created.
   const items = cartItems;
   const subtotal = totalPrice || 0;
   const shipping = subtotal >= 100 ? 0 : 9.99;
@@ -174,20 +152,22 @@ export default function CheckoutPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* ── Left: Checkout Form wrapped in Stripe Elements ── */}
+          {/* ── Left: Checkout Form wrapped in Rapyd Provider ── */}
           <div className="lg:col-span-3">
             <div className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-6 sm:p-8">
               {/*
-               * Elements provider must wrap any component that uses Stripe hooks
-               * (useStripe, useElements, CardElement, etc.).
-               * stripePromise is created once outside the component.
+               * RapydProvider must wrap any component that uses Rapyd hooks
+               * (useRapyd, useRapydElements, RapydCardElement, etc.).
+               * clientKey is the publishable API key from the environment.
                */}
-              <Elements stripe={stripePromise} options={STRIPE_ELEMENTS_OPTIONS}>
+              <RapydProvider
+                clientKey={process.env.REACT_APP_RAPYD_PUBLISHABLE_KEY || ''}
+              >
                 <CheckoutForm
                   onOrderSuccess={handleOrderSuccess}
                   orderTotal={total}
                 />
-              </Elements>
+              </RapydProvider>
             </div>
           </div>
 
