@@ -60,7 +60,7 @@ function CompleteTheKit({ excludeId }) {
                 </div>
               </Link>
             );
-          }}
+          })}
         </div>
       )}
     </section>

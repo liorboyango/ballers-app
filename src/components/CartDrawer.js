@@ -159,11 +159,11 @@ const CartDrawer = () => {
             </div>
           ) : (
             <ul className="space-y-4" role="list">
-              {items.map((item) => {
+              {items.map((item, index) => {
                 const imgSrc = getProductImage(item);
                 return (
                   <li
-                    key={item._id}
+                    key={item._id || `cart-item-${index}`}
                     className="flex gap-4 pb-4 border-b border-[#2A3550] last:border-0"
                   >
                     {/* Product image */}

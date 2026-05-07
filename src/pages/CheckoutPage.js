@@ -91,7 +91,7 @@ function OrderItem({ item }) {
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { cart, loading: cartLoading } = useCart();
+  const { items: cartItems, totalPrice, loading: cartLoading } = useCart();
   const { user, loading: authLoading } = useAuth();
   const [completedOrder, setCompletedOrder] = useState(null);
 
@@ -104,15 +104,15 @@ export default function CheckoutPage() {
 
   // Redirect to cart if cart is empty (and not loading)
   useEffect(() => {
-    if (!cartLoading && cart && (!cart.items || cart.items.length === 0) && !completedOrder) {
+    if (!cartLoading && cartItems.length === 0 && !completedOrder) {
       navigate('/cart');
     }
-  }, [cart, cartLoading, navigate, completedOrder]);
+  }, [cartItems, cartLoading, navigate, completedOrder]);
 
   // Calculate totals from local cart data for display
   // The actual charge amount is calculated server-side when the payment intent is created
-  const items = cart?.items || [];
-  const subtotal = cart?.totalPrice || 0;
+  const items = cartItems;
+  const subtotal = totalPrice || 0;
   const shipping = subtotal >= 100 ? 0 : 9.99;
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;

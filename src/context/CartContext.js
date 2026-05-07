@@ -54,6 +54,23 @@ export const CartProvider = ({ children }) => {
   }, []);
 
   /**
+   * Apply backend cart payload to local state. Totals are computed from the
+   * items array because the backend's `totalItems`/`totalPrice` are virtuals
+   * that may not be serialized over the wire. Each item is normalized so
+   * `price` is populated from the product reference when the backend doesn't
+   * inline it on the cart item.
+   */
+  const applyCartData = useCallback((cartData) => {
+    const itemsArr = (cartData?.items || []).map((item) => ({
+      ...item,
+      price: item.price ?? item.product?.price ?? 0,
+    }));
+    setCartId(cartData?._id || null);
+    setItems(itemsArr);
+    updateTotals(itemsArr);
+  }, [updateTotals]);
+
+  /**
    * Sync cart from backend when authenticated
    */
   const syncCart = useCallback(async () => {
@@ -62,28 +79,65 @@ export const CartProvider = ({ children }) => {
     setError(null);
     try {
       const result = await getCart();
-      const cartData = result.data;
-      setCartId(cartData._id);
-      setItems(cartData.items || []);
-      setTotalItems(cartData.totalItems || 0);
-      setTotalPrice(cartData.totalPrice || 0);
+      applyCartData(result.data);
     } catch (err) {
       setError(err.message || 'Failed to load cart');
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, applyCartData]);
+
+  /**
+   * Upload any guest cart items to the backend after sign-in, then clear
+   * the guest cart from localStorage. Runs before syncCart so the merged
+   * items appear in the synced response.
+   */
+  const mergeGuestCart = useCallback(async () => {
+    let guestCart;
+    try {
+      guestCart = JSON.parse(localStorage.getItem('ballers_guest_cart') || '[]');
+    } catch {
+      localStorage.removeItem('ballers_guest_cart');
+      return;
+    }
+    if (!Array.isArray(guestCart) || guestCart.length === 0) return;
+
+    for (const item of guestCart) {
+      const productId = item?.product?._id || item?.productId;
+      if (!productId) continue;
+      try {
+        await addToCart({
+          productId,
+          quantity: item.quantity || 1,
+          customization: item.customization || {},
+        });
+      } catch {
+        // Skip items the backend rejects so one bad item doesn't lose the rest
+      }
+    }
+    localStorage.removeItem('ballers_guest_cart');
+  }, []);
 
   /**
    * Sync cart when auth state changes
    */
   useEffect(() => {
+    let cancelled = false;
     if (isAuthenticated) {
-      syncCart();
+      (async () => {
+        setLoading(true);
+        await mergeGuestCart();
+        if (cancelled) return;
+        await syncCart();
+      })();
     } else {
       // Load guest cart from localStorage
       try {
-        const guestCart = JSON.parse(localStorage.getItem('ballers_guest_cart') || '[]');
+        const stored = JSON.parse(localStorage.getItem('ballers_guest_cart') || '[]');
+        const guestCart = stored.map((item) => ({
+          ...item,
+          price: item.price ?? item.product?.price ?? 0,
+        }));
         setItems(guestCart);
         updateTotals(guestCart);
       } catch {
@@ -92,7 +146,10 @@ export const CartProvider = ({ children }) => {
         setTotalPrice(0);
       }
     }
-  }, [isAuthenticated, token, syncCart, updateTotals]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, token, syncCart, updateTotals, mergeGuestCart]);
 
   /**
    * Add item to cart
@@ -104,11 +161,7 @@ export const CartProvider = ({ children }) => {
       setLoading(true);
       try {
         const result = await addToCart(item);
-        const cartData = result.data;
-        setCartId(cartData._id);
-        setItems(cartData.items || []);
-        setTotalItems(cartData.totalItems || 0);
-        setTotalPrice(cartData.totalPrice || 0);
+        applyCartData(result.data);
         return result;
       } catch (err) {
         setError(err.message || 'Failed to add item to cart');
@@ -119,7 +172,7 @@ export const CartProvider = ({ children }) => {
     } else {
       // Guest cart - store in localStorage
       const guestItem = {
-        _id: `guest_${Date.now()}`,
+        _id: `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         product: item.product || { _id: item.productId },
         quantity: item.quantity || 1,
         price: item.price || 0,
@@ -130,7 +183,7 @@ export const CartProvider = ({ children }) => {
       updateTotals(newItems);
       localStorage.setItem('ballers_guest_cart', JSON.stringify(newItems));
     }
-  }, [isAuthenticated, items, updateTotals]);
+  }, [isAuthenticated, items, updateTotals, applyCartData]);
 
   /**
    * Update cart item quantity or customization
@@ -143,10 +196,7 @@ export const CartProvider = ({ children }) => {
       setLoading(true);
       try {
         const result = await apiUpdateCartItem({ itemId, ...updates });
-        const cartData = result.data;
-        setItems(cartData.items || []);
-        setTotalItems(cartData.totalItems || 0);
-        setTotalPrice(cartData.totalPrice || 0);
+        applyCartData(result.data);
         return result;
       } catch (err) {
         setError(err.message || 'Failed to update cart item');
@@ -162,7 +212,7 @@ export const CartProvider = ({ children }) => {
       updateTotals(newItems);
       localStorage.setItem('ballers_guest_cart', JSON.stringify(newItems));
     }
-  }, [isAuthenticated, items, updateTotals]);
+  }, [isAuthenticated, items, updateTotals, applyCartData]);
 
   /**
    * Remove item from cart
@@ -174,10 +224,7 @@ export const CartProvider = ({ children }) => {
       setLoading(true);
       try {
         const result = await apiRemoveFromCart(itemId);
-        const cartData = result.data;
-        setItems(cartData.items || []);
-        setTotalItems(cartData.totalItems || 0);
-        setTotalPrice(cartData.totalPrice || 0);
+        applyCartData(result.data);
         return result;
       } catch (err) {
         setError(err.message || 'Failed to remove item from cart');
@@ -191,7 +238,7 @@ export const CartProvider = ({ children }) => {
       updateTotals(newItems);
       localStorage.setItem('ballers_guest_cart', JSON.stringify(newItems));
     }
-  }, [isAuthenticated, items, updateTotals]);
+  }, [isAuthenticated, items, updateTotals, applyCartData]);
 
   /**
    * Clear cart (used after successful order)

@@ -48,6 +48,6 @@ export const updateCartItem = async (update) => {
  * @returns {Promise<{success: boolean, data: Cart}>}
  */
 export const removeFromCart = async (itemId) => {
-  const response = await apiClient.delete('/cart/item', { data: { itemId } });
+  const response = await apiClient.delete('/cart/item', { params: { itemId } });
   return response.data;
 };

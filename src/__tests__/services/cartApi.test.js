@@ -69,7 +69,7 @@ describe('cartApi', () => {
 
       const result = await removeFromCart('item1');
 
-      expect(apiClient.delete).toHaveBeenCalledWith('/cart/item', { data: { itemId: 'item1' } });
+      expect(apiClient.delete).toHaveBeenCalledWith('/cart/item', { params: { itemId: 'item1' } });
       expect(result).toEqual(mockCart);
     });
   });
