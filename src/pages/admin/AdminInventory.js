@@ -2,8 +2,14 @@
  * AdminInventory — Inventory Management screen.
  * Pulls live products from GET /api/products.
  * Includes tabs: Products (existing), Import from Yupoo (new).
+ *
+ * Task 5 additions:
+ * - URL query-param based tab persistence (?tab=yupoo-import) for deep linking
+ * - Reads initial tab from the URL on mount; syncs back on tab switch
+ * - Proper aria-controls / aria-labelledby on tabpanels
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from './AdminLayout';
 import ProductFormModal from './ProductFormModal';
 import YupooImportPage from './YupooImportPage';
@@ -14,8 +20,6 @@ import { formatCurrency } from '../../utils/formatters';
 
 const PAGE_SIZE = 20;
 const LOW_STOCK_THRESHOLD = 10;
-
-const TABS = ['products', 'yupoo-import'];
 
 const KIT_ICON = {
   home: '🟢',
@@ -50,6 +54,9 @@ const stockStatus = (stock) => {
   return 'In Stock';
 };
 
+/** Valid tab values */
+const VALID_TABS = ['products', 'yupoo-import'];
+
 function StockBar({ stock, max, status }) {
   const pct = Math.min(100, (stock / Math.max(1, max)) * 100);
   const tone =
@@ -77,10 +84,27 @@ function StatusPill({ status }) {
 }
 
 function AdminInventory() {
-  const [activeTab, setActiveTab] = useState('products');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Tab state (URL-driven) ────────────────────────────────────────────────
+  const getTabFromUrl = useCallback(() => {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('tab');
+    return VALID_TABS.includes(t) ? t : 'products';
+  }, [location.search]);
+
+  const [activeTab, setActiveTab] = useState(() => getTabFromUrl());
+
+  // Sync tab state when URL changes externally (e.g. browser back/forward)
+  useEffect(() => {
+    setActiveTab(getTabFromUrl());
+  }, [getTabFromUrl]);
+
   const [hasUsedImport, setHasUsedImport] = useState(() => {
     return localStorage.getItem('ballers_yupoo_import_used') === 'true';
   });
+
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -102,13 +126,32 @@ function AdminInventory() {
     setParams(params);
   }, [page, debouncedQuery, setParams]);
 
-  const handleTabChange = (tab) => {
+  /**
+   * Switch tabs and push the new tab to the URL for deep linking.
+   * Does NOT add a history entry for the same tab.
+   */
+  const handleTabChange = useCallback((tab) => {
+    if (!VALID_TABS.includes(tab)) return;
     setActiveTab(tab);
+
+    // Sync URL: replace to avoid polluting browser history on every click
+    const params = new URLSearchParams(location.search);
+    if (tab === 'products') {
+      params.delete('tab');
+    } else {
+      params.set('tab', tab);
+    }
+    const search = params.toString();
+    navigate(
+      { pathname: location.pathname, search: search ? `?${search}` : '' },
+      { replace: true }
+    );
+
     if (tab === 'yupoo-import' && !hasUsedImport) {
       setHasUsedImport(true);
       localStorage.setItem('ballers_yupoo_import_used', 'true');
     }
-  };
+  }, [hasUsedImport, location.pathname, location.search, navigate]);
 
   const rows = useMemo(
     () =>
@@ -219,6 +262,7 @@ function AdminInventory() {
           id="tab-panel-products"
           role="tabpanel"
           aria-labelledby="tab-products"
+          tabIndex={0}
         >
           {/* KPI cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -363,6 +407,7 @@ function AdminInventory() {
           id="tab-panel-yupoo"
           role="tabpanel"
           aria-labelledby="tab-yupoo"
+          tabIndex={0}
         >
           <YupooImportPage />
         </div>
