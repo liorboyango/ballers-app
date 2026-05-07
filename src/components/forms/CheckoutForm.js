@@ -1,53 +1,31 @@
 /**
- * CheckoutForm component with Stripe Elements integration.
- * Multi-section form: Contact Info, Shipping Address, Payment (Stripe CardElement).
+ * CheckoutForm component with Rapyd Elements integration.
+ * Multi-section form: Contact Info, Shipping Address, Payment (Rapyd RapydCardElement).
  * Uses React Hook Form + Zod for contact/shipping validation.
- * Uses Stripe's CardElement for secure PCI-compliant card collection.
+ * Uses Rapyd's RapydCardElement for secure PCI-compliant card collection.
  *
  * Checkout Flow:
  *   1. Validate contact/shipping fields with react-hook-form + zod
  *   2. POST /api/orders/create-payment-intent (no body — cart fetched server-side)
- *      -> returns { clientSecret, paymentIntentId, orderSummary }
- *   3. stripe.confirmCardPayment(clientSecret, { payment_method: { card: cardElement } })
- *   4. On success: POST /api/orders/create { paymentIntentId, shippingAddress, paymentInfo }
+ *      -> returns { clientToken, paymentId, orderSummary }
+ *   3. rapyd.confirmPayment(clientToken, { elements: { card: cardElement } })
+ *   4. On success: POST /api/orders/create { rapydPaymentId, shippingAddress }
  *   5. Clear cart, redirect to /order-success with order state
  *
  * Error Handling:
- *   - card_error / validation_error -> inline error below CardElement
+ *   - card_error / validation_error -> inline error below RapydCardElement
  *   - api_error / network error -> server error banner at top of form
- *   - 3DS / next action -> stripe.handleNextAction() (handled automatically by confirmCardPayment)
+ *   - 3DS / next action -> handled automatically by rapyd.confirmPayment()
  */
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
-import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { RapydCardElement, useRapyd } from '@rapyd/client-web';
 import { checkoutSchema, COUNTRIES } from '../../utils/validation';
 import { FormInput, FormSelect, SectionHeading } from './FormField';
 import { useCart } from '../../hooks/useCart';
 import { createPaymentIntent, createOrder } from '../../services/ordersApi';
-
-/**
- * Stripe CardElement styling to match the dark theme.
- * Colors mirror the existing input styles.
- */
-const CARD_ELEMENT_OPTIONS = {
-  style: {
-    base: {
-      color: '#ffffff',
-      fontFamily: 'inherit',
-      fontSize: '14px',
-      fontSmoothing: 'antialiased',
-      '::placeholder': { color: '#A8B2C1' },
-      backgroundColor: 'transparent',
-    },
-    invalid: {
-      color: '#ef4444',
-      iconColor: '#ef4444',
-    },
-  },
-  hidePostalCode: true,
-};
 
 /**
  * @param {object} props
@@ -57,8 +35,7 @@ const CARD_ELEMENT_OPTIONS = {
 export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
   const navigate = useNavigate();
   const { clearCart } = useCart();
-  const stripe = useStripe();
-  const elements = useElements();
+  const rapyd = useRapyd();
 
   const [serverError, setServerError] = useState('');
   const [cardError, setCardError] = useState('');
@@ -83,7 +60,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
   });
 
   /**
-   * Handle Stripe CardElement change events.
+   * Handle RapydCardElement change events.
    * Shows inline error messages for card validation issues.
    */
   const handleCardChange = (event) => {
@@ -96,19 +73,13 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
 
   /**
    * Main form submission handler.
-   * Validates form, creates payment intent, confirms payment with Stripe,
+   * Validates form, creates payment intent, confirms payment with Rapyd,
    * then creates the order record on the backend.
    */
   const onSubmit = async (data) => {
-    if (!stripe || !elements) {
-      // Stripe.js has not loaded yet — disable form submission
+    if (!rapyd) {
+      // Rapyd.js has not loaded yet — disable form submission
       setServerError('Payment system is loading. Please try again in a moment.');
-      return;
-    }
-
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      setServerError('Card element not found. Please refresh the page.');
       return;
     }
 
@@ -129,17 +100,17 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
     };
 
     try {
-      // ── Step 1: Create a PaymentIntent on the backend ──────────────────────
+      // ── Step 1: Create a Payment on the backend ──────────────────────────
       // Backend calculates total from the authenticated user's cart to prevent
       // client-side price tampering. No cart data is sent from the client.
-      let clientSecret;
-      let paymentIntentId;
+      let clientToken;
+      let paymentId;
       let orderSummary;
 
       try {
         const intentData = await createPaymentIntent();
-        clientSecret = intentData.clientSecret;
-        paymentIntentId = intentData.paymentIntentId;
+        clientToken = intentData.clientToken;
+        paymentId = intentData.paymentId;
         orderSummary = intentData.orderSummary;
       } catch (intentErr) {
         // Surface specific backend error messages (e.g., "Cart is empty", "Item out of stock")
@@ -149,49 +120,48 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
         throw new Error(message);
       }
 
-      if (!clientSecret) {
+      if (!clientToken) {
         throw new Error('Invalid payment response from server. Please try again.');
       }
 
-      // ── Step 2: Confirm the card payment with Stripe ───────────────────────
-      // stripe.confirmCardPayment handles 3DS authentication automatically.
-      // On 3DS, Stripe opens a modal for the user to authenticate, then
-      // resolves the promise with the final paymentIntent status.
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-        clientSecret,
+      // ── Step 2: Confirm the card payment with Rapyd ───────────────────────
+      // rapyd.confirmPayment handles 3DS authentication automatically.
+      // On 3DS, Rapyd opens a modal for the user to authenticate, then
+      // resolves the promise with the final payment status.
+      const { error: rapydError, payment } = await rapyd.confirmPayment(
+        clientToken,
         {
-          payment_method: {
-            card: cardElement,
-            billing_details: {
-              name: `${data.firstName} ${data.lastName}`,
-              email: data.email,
-              phone: data.phone || undefined,
-              address: {
-                line1: data.address,
-                city: data.city,
-                postal_code: data.zip,
-                country: data.country,
-              },
+          elements: {
+            card: rapyd.getElement ? rapyd.getElement('card') : undefined,
+          },
+          billing_details: {
+            name: `${data.firstName} ${data.lastName}`,
+            email: data.email,
+            phone: data.phone || undefined,
+            address: {
+              line1: data.address,
+              city: data.city,
+              postal_code: data.zip,
+              country: data.country,
             },
           },
         }
       );
 
-      if (stripeError) {
-        // Handle Stripe-specific errors:
+      if (rapydError) {
+        // Handle Rapyd-specific errors:
         // - card_error: card declined, insufficient funds, etc.
         // - validation_error: invalid card number, expiry, etc.
-        // - api_error: Stripe API issue
-        // - authentication_error: 3DS failure
+        // - api_error: Rapyd API issue
         if (
-          stripeError.type === 'card_error' ||
-          stripeError.type === 'validation_error'
+          rapydError.type === 'card_error' ||
+          rapydError.type === 'validation_error'
         ) {
-          setCardError(stripeError.message);
+          setCardError(rapydError.message);
         } else {
           setServerError(
-            stripeError.message ||
-              'Your payment could not be processed. Please try again.'
+            rapydError.message ||
+              'Payment could not be processed. Please try again.'
           );
         }
         setIsSubmitting(false);
@@ -199,10 +169,11 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
         return;
       }
 
-      // Verify payment succeeded (handles edge cases where status isn't 'succeeded')
-      if (paymentIntent.status !== 'succeeded' && paymentIntent.status !== 'processing') {
+      // Verify payment succeeded
+      const paymentStatus = payment?.status;
+      if (paymentStatus && paymentStatus !== 'SUCCEEDED' && paymentStatus !== 'ACTIVATED') {
         setServerError(
-          `Payment status: ${paymentIntent.status}. Please contact support if you were charged.`
+          `Payment status: ${paymentStatus}. Contact support if charged.`
         );
         setIsSubmitting(false);
         return;
@@ -210,17 +181,12 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
 
       // ── Step 3: Create the order record on the backend ────────────────────
       // Payment succeeded — persist the order. If this fails, the webhook
-      // (payment_intent.succeeded) will create/update the order as a fallback.
+      // (payment.SUCCEEDED) will create/update the order as a fallback.
       let order = null;
       try {
         const orderResponse = await createOrder({
-          paymentIntentId: paymentIntentId || paymentIntent.id,
+          rapydPaymentId: paymentId || payment?.id,
           shippingAddress,
-          paymentInfo: {
-            method: 'card',
-            paymentIntentId: paymentIntentId || paymentIntent.id,
-            status: paymentIntent.status,
-          },
         });
         // Normalize order data from various response shapes
         order = orderResponse?.order || orderResponse?.data || orderResponse;
@@ -230,8 +196,8 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
         // We still redirect to success so the user isn't confused.
         console.error('[CheckoutForm] Order creation failed after payment:', orderErr);
         order = {
-          paymentIntentId: paymentIntentId || paymentIntent.id,
-          status: paymentIntent.status,
+          rapydPaymentId: paymentId || payment?.id,
+          status: paymentStatus || 'SUCCEEDED',
           orderSummary,
         };
       }
@@ -245,8 +211,8 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       const successState = {
         order: {
           ...order,
-          // Ensure we always have a paymentIntentId for reference
-          paymentIntentId: order?.paymentIntentId || paymentIntent.id,
+          // Ensure we always have a rapydPaymentId for reference
+          rapydPaymentId: order?.rapydPaymentId || paymentId || payment?.id,
           // Include order summary for display on success page
           orderSummary: order?.orderSummary || orderSummary,
           // Include shipping address for confirmation display
@@ -397,18 +363,18 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
         </div>
       </section>
 
-      {/* ── Section 3: Payment (Stripe) ── */}
+      {/* ── Section 3: Payment (Rapyd) ── */}
       <section aria-labelledby="section-payment">
         <SectionHeading number="3" title="Payment" />
 
         {/*
-         * Credit Card indicator — Stripe only (no PayPal tab per architecture plan).
+         * Credit Card indicator — Rapyd only (no PayPal tab per architecture plan).
          * Shows accepted card brands.
          */}
         <div
           className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[#E8C547] bg-[#E8C547]/10 mb-5"
           role="status"
-          aria-label="Payment method: Credit Card via Stripe"
+          aria-label="Payment method: Credit Card via Rapyd"
         >
           <svg
             className="w-5 h-5 text-[#E8C547] flex-shrink-0"
@@ -430,23 +396,22 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
           </span>
         </div>
 
-        {/* Stripe CardElement wrapper */}
+        {/* Rapyd RapydCardElement wrapper */}
         <div className="flex flex-col gap-2">
           <label
             className="text-sm font-medium text-white"
-            id="card-element-label"
-            htmlFor="card-element"
+            htmlFor="rapyd-card-element"
           >
             Card details
           </label>
 
           {/*
-           * CardElement wrapper styled to match existing inputs.
+           * RapydCardElement wrapper styled to match existing inputs.
            * focus-within ring changes color based on error state.
-           * The CardElement renders inside a Stripe-hosted iframe for PCI compliance.
+           * The RapydCardElement renders inside a Rapyd-hosted iframe for PCI compliance.
            */}
           <div
-            id="card-element"
+            id="rapyd-card-element"
             className={[
               'w-full px-4 py-3 rounded-lg bg-[#1A1A2E]',
               'border transition-colors focus-within:outline-none focus-within:ring-1',
@@ -454,16 +419,25 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
                 ? 'border-red-500 focus-within:border-red-500 focus-within:ring-red-500/30'
                 : 'border-[#2A3550] focus-within:border-[#E8C547] focus-within:ring-[#E8C547]/30',
             ].join(' ')}
-            role="group"
-            aria-labelledby="card-element-label"
           >
-            <CardElement
-              options={CARD_ELEMENT_OPTIONS}
+            <RapydCardElement
+              options={{
+                style: {
+                  base: {
+                    color: '#ffffff',
+                    fontFamily: 'inherit',
+                    fontSize: '14px',
+                    '::placeholder': { color: '#A8B2C1' },
+                    backgroundColor: 'transparent',
+                  },
+                  invalid: { color: '#ef4444', iconColor: '#ef4444' },
+                },
+              }}
               onChange={handleCardChange}
             />
           </div>
 
-          {/* Inline card error — shown below the CardElement */}
+          {/* Inline card error — shown below the RapydCardElement */}
           {cardError && (
             <p
               role="alert"
@@ -485,23 +459,19 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
             </p>
           )}
 
-          {/* Card brand logos row */}
+          {/* Card brand badges */}
           <div
             className="flex items-center gap-2 mt-1"
             aria-label="Accepted card brands"
           >
-            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">
-              Visa
-            </span>
-            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">
-              Mastercard
-            </span>
-            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">
-              Amex
-            </span>
-            <span className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]">
-              Discover
-            </span>
+            {['Visa', 'Mastercard', 'Amex', 'Discover'].map((brand) => (
+              <span
+                key={brand}
+                className="text-xs text-[#A8B2C1] px-2 py-0.5 rounded border border-[#2A3550]"
+              >
+                {brand}
+              </span>
+            ))}
           </div>
 
           {/* Security badge — reassures users their card data is safe */}
@@ -519,8 +489,8 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
               />
             </svg>
             Secured by{' '}
-            <span className="font-semibold text-white">Stripe</span>
-            {' '}&mdash; your card is never stored on our servers.
+            <span className="font-semibold text-white">Rapyd</span>
+            <span className="text-[#A8B2C1]">&mdash; PCI DSS Level 1</span>
           </div>
         </div>
       </section>
@@ -528,7 +498,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       {/* ── Submit button ── */}
       <button
         type="submit"
-        disabled={isSubmitting || !stripe}
+        disabled={isSubmitting || !rapyd}
         className="w-full py-4 px-6 bg-[#E8C547] text-[#1A1A2E] font-bold uppercase tracking-wider rounded-lg hover:bg-[#D4A800] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
         aria-busy={isSubmitting}
       >

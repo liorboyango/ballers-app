@@ -1,11 +1,11 @@
 /**
- * CheckoutForm tests with Stripe mocking.
- * Tests the Stripe-integrated checkout form behavior.
+ * CheckoutForm tests with Rapyd mocking.
+ * Tests the Rapyd-integrated checkout form behavior.
  * Verifies that:
  *   - All contact/shipping fields render correctly
- *   - Stripe CardElement is rendered (no manual card fields)
+ *   - Rapyd RapydCardElement is rendered (no manual card fields)
  *   - Form validation works for required fields
- *   - Payment flow calls create-payment-intent then confirmCardPayment
+ *   - Payment flow calls create-payment-intent then rapyd.confirmPayment
  *   - Card errors and server errors are displayed correctly
  *   - Successful payment clears cart and calls onOrderSuccess
  */
@@ -14,25 +14,25 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 
-// Mock Stripe hooks before importing the component
-const mockConfirmCardPayment = jest.fn();
+// Mock Rapyd hooks and components before importing the component
+const mockConfirmPayment = jest.fn();
 const mockGetElement = jest.fn();
+const mockRapyd = {
+  confirmPayment: mockConfirmPayment,
+  getElement: mockGetElement,
+};
 
-jest.mock('@stripe/react-stripe-js', () => ({
-  CardElement: ({ onChange }) => (
+jest.mock('@rapyd/client-web', () => ({
+  RapydCardElement: ({ onChange }) => (
     <div
-      data-testid="card-element"
+      data-testid="rapyd-card-element"
       role="group"
       aria-label="Card details"
       onClick={() => onChange && onChange({ error: null })}
     />
   ),
-  useStripe: () => ({
-    confirmCardPayment: mockConfirmCardPayment,
-  }),
-  useElements: () => ({
-    getElement: mockGetElement,
-  }),
+  useRapyd: () => mockRapyd,
+  RapydProvider: ({ children }) => <>{children}</>,
 }));
 
 // Mock CartContext
@@ -41,7 +41,7 @@ jest.mock('../../../hooks/useCart', () => ({
   default: () => ({ clearCart: jest.fn() }),
 }));
 
-// Mock ordersApi — the form now uses createPaymentIntent and createOrder directly
+// Mock ordersApi — the form uses createPaymentIntent and createOrder directly
 jest.mock('../../../services/ordersApi', () => ({
   createPaymentIntent: jest.fn(),
   createOrder: jest.fn(),
@@ -71,7 +71,6 @@ async function fillRequiredFields(user) {
 describe('CheckoutForm', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Return a mock card element object so getElement doesn't return null
     mockGetElement.mockReturnValue({ _type: 'card' });
   });
 
@@ -93,10 +92,10 @@ describe('CheckoutForm', () => {
     expect(screen.getByLabelText(/country/i)).toBeInTheDocument();
   });
 
-  it('renders Stripe CardElement instead of manual card fields', () => {
+  it('renders Rapyd RapydCardElement instead of manual card fields', () => {
     renderForm();
-    // Stripe CardElement should be present
-    expect(screen.getByTestId('card-element')).toBeInTheDocument();
+    // Rapyd RapydCardElement should be present
+    expect(screen.getByTestId('rapyd-card-element')).toBeInTheDocument();
     // Manual card fields should NOT be present
     expect(screen.queryByPlaceholderText(/1234 5678/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/card number/i)).not.toBeInTheDocument();
@@ -115,10 +114,11 @@ describe('CheckoutForm', () => {
     expect(screen.queryByText(/paypal/i)).not.toBeInTheDocument();
   });
 
-  it('renders security badge with Stripe branding', () => {
+  it('renders security badge with Rapyd branding', () => {
     renderForm();
     expect(screen.getByText(/secured by/i)).toBeInTheDocument();
-    expect(screen.getByText('Stripe')).toBeInTheDocument();
+    expect(screen.getByText('Rapyd')).toBeInTheDocument();
+    expect(screen.getByText(/PCI DSS Level 1/i)).toBeInTheDocument();
   });
 
   it('renders accepted card brand labels', () => {
@@ -134,6 +134,13 @@ describe('CheckoutForm', () => {
     expect(screen.getByText(/contact info/i)).toBeInTheDocument();
     expect(screen.getByText(/shipping address/i)).toBeInTheDocument();
     expect(screen.getByText(/payment/i)).toBeInTheDocument();
+  });
+
+  it('renders payment method aria-label mentioning Rapyd', () => {
+    renderForm();
+    expect(
+      screen.getByRole('status', { name: /credit card via rapyd/i })
+    ).toBeInTheDocument();
   });
 
   // ── Submit button ──────────────────────────────────────────────────────────
@@ -183,15 +190,14 @@ describe('CheckoutForm', () => {
 
   // ── Payment flow ───────────────────────────────────────────────────────────
 
-  it('calls createPaymentIntent and confirmCardPayment on valid submit', async () => {
+  it('calls createPaymentIntent and rapyd.confirmPayment on valid submit', async () => {
     const user = userEvent.setup();
     const onOrderSuccess = jest.fn();
 
-    // Backend returns nested { status: 'success', data: { clientSecret, paymentIntentId, orderSummary } }
-    // createPaymentIntent() in ordersApi.js normalizes this to a flat object
+    // Backend returns { clientToken, paymentId, orderSummary, ... }
     createPaymentIntent.mockResolvedValueOnce({
-      clientSecret: 'pi_test_secret',
-      paymentIntentId: 'pi_test_id',
+      clientToken: 'rapyd_client_token_test',
+      paymentId: 'pay_test_id',
       amount: 8999,
       currency: 'usd',
       orderSummary: { subtotal: 79.99, shippingCost: 0, total: 89.99, itemCount: 1 },
@@ -201,8 +207,8 @@ describe('CheckoutForm', () => {
       order: { id: 'order-123', status: 'pending' },
     });
 
-    mockConfirmCardPayment.mockResolvedValueOnce({
-      paymentIntent: { id: 'pi_test_id', status: 'succeeded' },
+    mockConfirmPayment.mockResolvedValueOnce({
+      payment: { id: 'pay_test_id', status: 'SUCCEEDED' },
       error: null,
     });
 
@@ -216,14 +222,12 @@ describe('CheckoutForm', () => {
     });
 
     await waitFor(() => {
-      expect(mockConfirmCardPayment).toHaveBeenCalledWith(
-        'pi_test_secret',
+      expect(mockConfirmPayment).toHaveBeenCalledWith(
+        'rapyd_client_token_test',
         expect.objectContaining({
-          payment_method: expect.objectContaining({
-            billing_details: expect.objectContaining({
-              name: 'John Doe',
-              email: 'john@example.com',
-            }),
+          billing_details: expect.objectContaining({
+            name: 'John Doe',
+            email: 'john@example.com',
           }),
         })
       );
@@ -232,14 +236,11 @@ describe('CheckoutForm', () => {
     await waitFor(() => {
       expect(createOrder).toHaveBeenCalledWith(
         expect.objectContaining({
-          paymentIntentId: 'pi_test_id',
+          rapydPaymentId: 'pay_test_id',
           shippingAddress: expect.objectContaining({
             firstName: 'John',
             lastName: 'Doe',
             email: 'john@example.com',
-          }),
-          paymentInfo: expect.objectContaining({
-            method: 'card',
           }),
         })
       );
@@ -252,19 +253,19 @@ describe('CheckoutForm', () => {
     });
   });
 
-  it('shows card error when Stripe returns card_error', async () => {
+  it('shows card error when Rapyd returns card_error', async () => {
     const user = userEvent.setup();
 
     createPaymentIntent.mockResolvedValueOnce({
-      clientSecret: 'pi_test_secret',
-      paymentIntentId: 'pi_test_id',
+      clientToken: 'rapyd_client_token_test',
+      paymentId: 'pay_test_id',
       amount: 8999,
       currency: 'usd',
       orderSummary: null,
     });
 
-    mockConfirmCardPayment.mockResolvedValueOnce({
-      paymentIntent: null,
+    mockConfirmPayment.mockResolvedValueOnce({
+      payment: null,
       error: {
         type: 'card_error',
         message: 'Your card was declined.',
@@ -298,19 +299,19 @@ describe('CheckoutForm', () => {
     });
   });
 
-  it('shows server error for non-card Stripe errors', async () => {
+  it('shows server error for non-card Rapyd errors', async () => {
     const user = userEvent.setup();
 
     createPaymentIntent.mockResolvedValueOnce({
-      clientSecret: 'pi_test_secret',
-      paymentIntentId: 'pi_test_id',
+      clientToken: 'rapyd_client_token_test',
+      paymentId: 'pay_test_id',
       amount: 8999,
       currency: 'usd',
       orderSummary: null,
     });
 
-    mockConfirmCardPayment.mockResolvedValueOnce({
-      paymentIntent: null,
+    mockConfirmPayment.mockResolvedValueOnce({
+      payment: null,
       error: {
         type: 'api_error',
         message: 'An unexpected error occurred.',
@@ -333,8 +334,8 @@ describe('CheckoutForm', () => {
     const onOrderSuccess = jest.fn();
 
     createPaymentIntent.mockResolvedValueOnce({
-      clientSecret: 'pi_test_secret',
-      paymentIntentId: 'pi_456',
+      clientToken: 'rapyd_client_token_test',
+      paymentId: 'pay_456',
       amount: 8999,
       currency: 'usd',
       orderSummary: { total: 89.99 },
@@ -344,8 +345,8 @@ describe('CheckoutForm', () => {
       order: { id: 'order-456', status: 'pending' },
     });
 
-    mockConfirmCardPayment.mockResolvedValueOnce({
-      paymentIntent: { id: 'pi_456', status: 'succeeded' },
+    mockConfirmPayment.mockResolvedValueOnce({
+      payment: { id: 'pay_456', status: 'SUCCEEDED' },
       error: null,
     });
 
@@ -371,8 +372,8 @@ describe('CheckoutForm', () => {
     const onOrderSuccess = jest.fn();
 
     createPaymentIntent.mockResolvedValueOnce({
-      clientSecret: 'pi_test_secret',
-      paymentIntentId: 'pi_789',
+      clientToken: 'rapyd_client_token_test',
+      paymentId: 'pay_789',
       amount: 5000,
       currency: 'usd',
       orderSummary: { total: 50.00 },
@@ -383,8 +384,8 @@ describe('CheckoutForm', () => {
       message: 'Database error',
     });
 
-    mockConfirmCardPayment.mockResolvedValueOnce({
-      paymentIntent: { id: 'pi_789', status: 'succeeded' },
+    mockConfirmPayment.mockResolvedValueOnce({
+      payment: { id: 'pay_789', status: 'SUCCEEDED' },
       error: null,
     });
 
@@ -397,7 +398,7 @@ describe('CheckoutForm', () => {
     await waitFor(() => {
       expect(onOrderSuccess).toHaveBeenCalledWith(
         expect.objectContaining({
-          paymentIntentId: 'pi_789',
+          rapydPaymentId: 'pay_789',
         })
       );
     });

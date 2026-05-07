@@ -5,13 +5,13 @@
 import apiClient from './api';
 
 /**
- * Create a Stripe PaymentIntent for the current cart.
+ * Create a Rapyd Payment for the current cart.
  * The backend fetches the cart server-side and calculates the total,
  * preventing client-side price tampering.
  *
  * @returns {Promise<{
- *   clientSecret: string,
- *   paymentIntentId: string,
+ *   clientToken: string,
+ *   paymentId: string,
  *   amount: number,
  *   currency: string,
  *   orderSummary: {
@@ -24,16 +24,16 @@ import apiClient from './api';
  * }>}
  * @throws {Error} 400 if cart is empty or items out of stock
  * @throws {Error} 401 if unauthenticated
- * @throws {Error} 502 if Stripe is unavailable
+ * @throws {Error} 502 if Rapyd is unavailable
  */
 export const createPaymentIntent = async () => {
   // No request body needed — cart is fetched server-side from the authenticated user's session
   const response = await apiClient.post('/orders/create-payment-intent');
-  // Backend returns: { status: 'success', data: { clientSecret, paymentIntentId, amount, currency, orderSummary } }
+  // Backend returns: { status: 'success', data: { clientToken, paymentId, amount, currency, orderSummary } }
   const payload = response.data?.data || response.data;
   return {
-    clientSecret: payload.clientSecret || payload.client_secret,
-    paymentIntentId: payload.paymentIntentId || payload.payment_intent_id,
+    clientToken: payload.clientToken || payload.client_token,
+    paymentId: payload.paymentId || payload.payment_id,
     amount: payload.amount,
     currency: payload.currency || 'usd',
     orderSummary: payload.orderSummary || null,
@@ -41,11 +41,11 @@ export const createPaymentIntent = async () => {
 };
 
 /**
- * Create a new order after successful Stripe payment.
- * Called after stripe.confirmCardPayment succeeds.
+ * Create a new order after successful Rapyd payment.
+ * Called after rapyd.confirmPayment succeeds.
  *
  * @param {Object} orderData - Order data
- * @param {string} orderData.paymentIntentId - Stripe PaymentIntent ID
+ * @param {string} orderData.rapydPaymentId - Rapyd Payment ID
  * @param {Object} orderData.shippingAddress - Shipping address
  * @param {string} orderData.shippingAddress.firstName - First name
  * @param {string} orderData.shippingAddress.lastName - Last name
@@ -55,10 +55,6 @@ export const createPaymentIntent = async () => {
  * @param {string} orderData.shippingAddress.zip - ZIP code
  * @param {string} orderData.shippingAddress.country - Country
  * @param {string} [orderData.shippingAddress.phone] - Phone number
- * @param {Object} orderData.paymentInfo - Payment information
- * @param {string} orderData.paymentInfo.method - Payment method (card)
- * @param {string} orderData.paymentInfo.paymentIntentId - Stripe PaymentIntent ID
- * @param {string} orderData.paymentInfo.status - Payment status
  * @returns {Promise<{message: string, order: Order}>}
  */
 export const createOrder = async (orderData) => {
