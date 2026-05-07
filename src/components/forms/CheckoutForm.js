@@ -14,14 +14,15 @@
  *
  * Payment Status Handling:
  *   - SUCCEEDED / ACTIVATED  -> proceed to order creation
- *   - PENDING                -> show pending message, proceed (webhook will update)
- *   - FAILED / CANCELED      -> show error, stay on form
- *   - EXPIRED / ERROR        -> show error, stay on form
+ *   - PENDING                -> show informational notice, proceed (webhook will update)
+ *   - FAILED / CANCELED      -> show error banner, stay on form
+ *   - EXPIRED / ERROR        -> show error banner, stay on form
  *
  * Error Handling:
- *   - card_error / validation_error -> inline error below RapydCardElement
+ *   - card_error / validation_error / authentication_error -> inline error below card element
  *   - api_error / network error     -> server error banner at top of form
- *   - 3DS / next action             -> handled automatically by rapyd.confirmPayment()
+ *   - payment status failure        -> server error banner with contextual message
+ *   - order creation failure        -> log + webhook fallback (still navigate to success)
  */
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -37,13 +38,22 @@ import { createPaymentIntent, createOrder } from '../../services/ordersApi';
  * Rapyd payment statuses that indicate the payment has succeeded or
  * is in an acceptable initial state to proceed with order creation.
  * ACTIVATED is Rapyd's initial "auth hold" status for some payment methods.
+ * PENDING means an async payment (e.g. bank transfer) — we proceed and
+ * the webhook will update the order status once the payment completes.
  */
 const RAPYD_SUCCESS_STATUSES = new Set(['SUCCEEDED', 'ACTIVATED', 'PENDING']);
 
 /**
  * Rapyd payment statuses that indicate a terminal failure.
+ * These statuses block order creation and display a user-facing error.
  */
-const RAPYD_FAILURE_STATUSES = new Set(['FAILED', 'CANCELED', 'CANCELLED', 'EXPIRED', 'ERROR']);
+const RAPYD_FAILURE_STATUSES = new Set([
+  'FAILED',
+  'CANCELED',
+  'CANCELLED',
+  'EXPIRED',
+  'ERROR',
+]);
 
 /**
  * Extract a human-readable error message from a Rapyd error object.
@@ -61,6 +71,43 @@ function getRapydErrorMessage(rapydError) {
     rapydError.response?.error?.message ||
     'Payment could not be processed. Please try again.'
   );
+}
+
+/**
+ * Map a failed Rapyd payment status to a contextual error message.
+ * Helps users understand whether they may have been charged.
+ *
+ * @param {string} statusUpper - Upper-cased Rapyd payment status
+ * @returns {string} User-facing error message
+ */
+function getPaymentStatusErrorMessage(statusUpper) {
+  switch (statusUpper) {
+    case 'FAILED':
+      return (
+        'Payment failed. Your card was not charged. ' +
+        'Please check your card details or try a different payment method.'
+      );
+    case 'CANCELED':
+    case 'CANCELLED':
+      return (
+        'Payment was cancelled. Your card was not charged. ' +
+        'Please try again when you are ready.'
+      );
+    case 'EXPIRED':
+      return (
+        'Payment session expired. Please start the checkout process again.'
+      );
+    case 'ERROR':
+      return (
+        'A payment processing error occurred. ' +
+        'If you believe you were charged, please contact support.'
+      );
+    default:
+      return (
+        `Payment status: ${statusUpper.toLowerCase()}. ` +
+        'Contact support if you believe you were charged.'
+      );
+  }
 }
 
 /**
@@ -87,6 +134,12 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
   const [serverError, setServerError] = useState('');
   const [cardError, setCardError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * pendingNotice: shown when a payment is PENDING (async payment method).
+   * The user sees an informational message instead of an error — the payment
+   * is in progress and the webhook will update the order once it completes.
+   */
+  const [pendingNotice, setPendingNotice] = useState(false);
 
   const {
     register,
@@ -146,6 +199,7 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
     setIsSubmitting(true);
     setServerError('');
     setCardError('');
+    setPendingNotice(false);
 
     // Build shipping address object used in multiple steps
     const shippingAddress = {
@@ -176,14 +230,20 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       } catch (intentErr) {
         // Surface specific backend error messages (e.g. "Cart is empty",
         // "Item out of stock") so the user knows what to fix.
-        throw new Error(
+        const msg =
           intentErr.message ||
-            'Failed to initialize payment. Please try again.'
-        );
+          'Failed to initialize payment. Please try again.';
+        setServerError(msg);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setIsSubmitting(false);
+        return;
       }
 
       if (!clientToken) {
-        throw new Error('Invalid payment response from server. Please try again.');
+        setServerError('Invalid payment response from server. Please try again.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setIsSubmitting(false);
+        return;
       }
 
       // ── Step 2: Confirm the card payment with the Rapyd SDK ───────────────
@@ -195,9 +255,6 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       //   - The promise resolves only after 3DS is complete (pass or fail).
       //
       // options.billing_address maps to Rapyd's payment_method.billing_address.
-      // options.payment_method_type defaults to 'us_debit_visa_card' but Rapyd
-      // Elements auto-detect the card brand, so we pass 'card' as a generic type
-      // when using the hosted element.
       const confirmOptions = {
         // billing_address is sent to Rapyd for AVS checks and 3DS pre-fill.
         billing_address: {
@@ -229,9 +286,9 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       // ── Step 3: Handle Rapyd confirmation result ──────────────────────────
       if (rapydError) {
         // Rapyd error types:
-        //   card_error       – card was declined, insufficient funds, etc.
-        //   validation_error – invalid card number, CVV, or expiry
-        //   api_error        – Rapyd-side issue (rare)
+        //   card_error           – card was declined, insufficient funds, etc.
+        //   validation_error     – invalid card number, CVV, or expiry
+        //   api_error            – Rapyd-side issue (rare)
         //   authentication_error – 3DS failed
         const isCardError =
           rapydError.type === 'card_error' ||
@@ -257,22 +314,22 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
       const paymentStatus = payment?.status?.toUpperCase();
 
       if (paymentStatus && RAPYD_FAILURE_STATUSES.has(paymentStatus)) {
-        setServerError(
-          `Payment ${paymentStatus.toLowerCase()}. ` +
-            (paymentStatus === 'FAILED' || paymentStatus === 'CANCELED' || paymentStatus === 'CANCELLED'
-              ? 'Your card was not charged. Please try a different payment method.'
-              : 'Contact support if you believe you were charged.')
-        );
+        const errorMsg = getPaymentStatusErrorMessage(paymentStatus);
+        setServerError(errorMsg);
         setIsSubmitting(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
+      // If payment is PENDING, show the user an informational notice.
+      // We still proceed to order creation — the webhook will confirm the
+      // payment and update the order status once processing completes.
+      if (paymentStatus === 'PENDING') {
+        setPendingNotice(true);
+      }
+
       // Warn (but don't block) on unexpected status values
-      if (
-        paymentStatus &&
-        !RAPYD_SUCCESS_STATUSES.has(paymentStatus)
-      ) {
+      if (paymentStatus && !RAPYD_SUCCESS_STATUSES.has(paymentStatus)) {
         console.warn(
           `[CheckoutForm] Unexpected Rapyd payment status: ${paymentStatus}`
         );
@@ -376,6 +433,33 @@ export default function CheckoutForm({ onOrderSuccess, orderTotal }) {
             />
           </svg>
           {serverError}
+        </div>
+      )}
+
+      {/* ── PENDING payment informational notice ── */}
+      {pendingNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-3 p-4 rounded-lg bg-[#E8C547]/10 border border-[#E8C547]/40 text-sm"
+        >
+          <svg
+            className="w-5 h-5 text-[#E8C547] flex-shrink-0 mt-0.5"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9
+                 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <p className="text-[#E8C547]">
+            Your payment is being processed. We will send a confirmation email
+            once the payment is verified.
+          </p>
         </div>
       )}
 

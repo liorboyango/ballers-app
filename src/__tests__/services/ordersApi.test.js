@@ -1,13 +1,13 @@
 /**
- * Tests for the Orders API service - Rapyd integration.
+ * Tests for the Orders API service — Rapyd integration.
  *
  * Covers:
- *   - createPaymentIntent: response field normalisation (camelCase, snake_case,
- *     nested envelope), missing fields, error propagation
- *   - createOrder: request payload shape (rapydPaymentId, no paymentIntentId),
- *     response passthrough, legacy field stripping
- *   - getOrders: pagination, query params, error handling
- *   - getOrderById: success, 404 handling
+ *   - createPaymentIntent: response normalisation (camelCase, snake_case, direct)
+ *   - createPaymentIntent: error handling (network, 400, 401, 502)
+ *   - createOrder: request payload (rapydPaymentId, strips legacy paymentIntentId)
+ *   - createOrder: response unwrapping
+ *   - createOrder: duplicate-order 409 error
+ *   - getOrders / getOrderById: basic fetching
  */
 import apiClient from '../../services/api';
 import {
@@ -17,7 +17,7 @@ import {
   getOrderById,
 } from '../../services/ordersApi';
 
-// -- Mock the Axios API client ------------------------------------------------
+// ── Mock apiClient ─────────────────────────────────────────────────────────
 jest.mock('../../services/api', () => ({
   __esModule: true,
   default: {
@@ -33,440 +33,364 @@ jest.mock('../../services/api', () => ({
   API_BASE_URL: 'http://localhost:5000/api',
 }));
 
-// -- Shared fixtures ----------------------------------------------------------
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-/** Standard Rapyd payment intent backend response (camelCase) */
-const RAPYD_INTENT_PAYLOAD_CAMEL = {
-  paymentId: 'payment_abc123',
-  clientToken: 'rapyd_ct_test_abc',
-  amount: 8999,
-  currency: 'USD',
-  orderSummary: {
-    items: [{ productId: 'p1', quantity: 1, price: 79.99 }],
-    subtotal: 79.99,
-    shippingCost: 9.99,
-    total: 89.99,
-    itemCount: 1,
-  },
-};
+/**
+ * Build a fake successful axios response wrapping the given data
+ * in the backend envelope: { status: 'success', data: <payload> }.
+ */
+function makeApiResponse(payload) {
+  return { data: { status: 'success', data: payload } };
+}
 
-/** Same data using snake_case field names (legacy backend variant) */
-const RAPYD_INTENT_PAYLOAD_SNAKE = {
-  payment_id: 'payment_snake456',
-  client_token: 'rapyd_ct_snake_456',
-  amount: 5000,
-  currency: 'usd',
-  order_summary: {
-    subtotal: 40,
-    shippingCost: 10,
-    total: 50,
-    itemCount: 2,
-  },
-};
+/**
+ * Build an error object matching the shape produced by the axios
+ * response interceptor in src/services/api.js.
+ */
+function makeApiError(status, message, errors = []) {
+  return { status, message, errors, originalError: new Error(message) };
+}
 
-/** Standard Rapyd create-order response */
-const RAPYD_ORDER_RESPONSE = {
-  status: 'success',
-  data: {
-    orderId: 'order_xyz789',
-    orderNumber: 'ORD-20260507-0001',
-    status: 'paid',
-    rapydPaymentId: 'payment_abc123',
-    paymentMethod: 'rapyd',
-    items: [{ productId: 'p1', quantity: 1, price: 79.99 }],
-    subtotal: 79.99,
-    shippingCost: 9.99,
-    total: 89.99,
-    shippingAddress: {
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'john@example.com',
-      address: '123 Main St',
-      city: 'New York',
-      zip: '10001',
-      country: 'US',
-    },
-    createdAt: '2026-05-07T15:13:42.000Z',
-  },
-};
+// ── createPaymentIntent ────────────────────────────────────────────────────
 
-// -- Tests --------------------------------------------------------------------
+describe('createPaymentIntent', () => {
+  beforeEach(() => jest.clearAllMocks());
 
-describe('ordersApi', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+  // ── Happy path: response normalisation ───────────────────────────────────
+
+  it('returns camelCase fields directly from the backend envelope', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({
+        clientToken: 'tok_abc123',
+        paymentId: 'payment_ABCDEF',
+        amount: 9999,
+        currency: 'USD',
+        orderSummary: { subtotal: 89.99, shippingCost: 9.99, total: 99.99, itemCount: 2 },
+      })
+    );
+
+    const result = await createPaymentIntent();
+
+    expect(apiClient.post).toHaveBeenCalledWith('/orders/create-payment-intent');
+    expect(result.clientToken).toBe('tok_abc123');
+    expect(result.paymentId).toBe('payment_ABCDEF');
+    expect(result.amount).toBe(9999);
+    expect(result.currency).toBe('usd'); // normalised to lowercase
+    expect(result.orderSummary).toEqual(
+      expect.objectContaining({ total: 99.99, itemCount: 2 })
+    );
   });
 
-  // -- createPaymentIntent ----------------------------------------------------
+  it('normalises snake_case field names (legacy backend variants)', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({
+        client_token: 'tok_snake',
+        payment_id: 'payment_SNAKE1',
+        amount: 5000,
+        currency: 'USD',
+        order_summary: { total: 50.0 },
+      })
+    );
 
-  describe('createPaymentIntent', () => {
-    it('calls POST /orders/create-payment-intent with no body', async () => {
-      apiClient.post.mockResolvedValueOnce({ data: { data: RAPYD_INTENT_PAYLOAD_CAMEL } });
+    const result = await createPaymentIntent();
 
-      await createPaymentIntent();
-
-      expect(apiClient.post).toHaveBeenCalledTimes(1);
-      expect(apiClient.post).toHaveBeenCalledWith('/orders/create-payment-intent');
-    });
-
-    it('normalises camelCase Rapyd fields from nested data envelope', async () => {
-      apiClient.post.mockResolvedValueOnce({
-        data: { status: 'success', data: RAPYD_INTENT_PAYLOAD_CAMEL },
-      });
-
-      const result = await createPaymentIntent();
-
-      expect(result.clientToken).toBe('rapyd_ct_test_abc');
-      expect(result.paymentId).toBe('payment_abc123');
-      expect(result.amount).toBe(8999);
-      expect(result.currency).toBe('usd'); // normalised to lowercase
-      expect(result.orderSummary).toEqual(RAPYD_INTENT_PAYLOAD_CAMEL.orderSummary);
-    });
-
-    it('normalises snake_case Rapyd fields (legacy backend variant)', async () => {
-      apiClient.post.mockResolvedValueOnce({
-        data: { status: 'success', data: RAPYD_INTENT_PAYLOAD_SNAKE },
-      });
-
-      const result = await createPaymentIntent();
-
-      expect(result.clientToken).toBe('rapyd_ct_snake_456');
-      expect(result.paymentId).toBe('payment_snake456');
-      expect(result.amount).toBe(5000);
-      expect(result.currency).toBe('usd');
-      // order_summary fallback to snake_case key
-      expect(result.orderSummary).toEqual(RAPYD_INTENT_PAYLOAD_SNAKE.order_summary);
-    });
-
-    it('handles flat response (no nested data envelope)', async () => {
-      apiClient.post.mockResolvedValueOnce({
-        data: RAPYD_INTENT_PAYLOAD_CAMEL,
-      });
-
-      const result = await createPaymentIntent();
-
-      expect(result.clientToken).toBe('rapyd_ct_test_abc');
-      expect(result.paymentId).toBe('payment_abc123');
-    });
-
-    it('returns empty strings for missing clientToken and paymentId', async () => {
-      apiClient.post.mockResolvedValueOnce({
-        data: { data: { amount: 100, currency: 'usd' } },
-      });
-
-      const result = await createPaymentIntent();
-
-      expect(result.clientToken).toBe('');
-      expect(result.paymentId).toBe('');
-    });
-
-    it('returns 0 for missing amount', async () => {
-      apiClient.post.mockResolvedValueOnce({
-        data: { data: { clientToken: 'ct', paymentId: 'pay_id' } },
-      });
-
-      const result = await createPaymentIntent();
-
-      expect(result.amount).toBe(0);
-    });
-
-    it('returns null for missing orderSummary', async () => {
-      apiClient.post.mockResolvedValueOnce({
-        data: { data: { clientToken: 'ct', paymentId: 'pay_id', amount: 100 } },
-      });
-
-      const result = await createPaymentIntent();
-
-      expect(result.orderSummary).toBeNull();
-    });
-
-    it('defaults currency to "usd" when missing', async () => {
-      apiClient.post.mockResolvedValueOnce({
-        data: { data: { clientToken: 'ct', paymentId: 'pay_id' } },
-      });
-
-      const result = await createPaymentIntent();
-
-      expect(result.currency).toBe('usd');
-    });
-
-    it('normalises uppercase currency to lowercase', async () => {
-      apiClient.post.mockResolvedValueOnce({
-        data: { data: { clientToken: 'ct', paymentId: 'pay_id', currency: 'USD' } },
-      });
-
-      const result = await createPaymentIntent();
-
-      expect(result.currency).toBe('usd');
-    });
-
-    it('propagates network errors', async () => {
-      const networkErr = { status: 0, message: 'Network error. Please check your connection.' };
-      apiClient.post.mockRejectedValueOnce(networkErr);
-
-      await expect(createPaymentIntent()).rejects.toEqual(networkErr);
-    });
-
-    it('propagates 401 authentication errors', async () => {
-      const authErr = { status: 401, message: 'Unauthorized' };
-      apiClient.post.mockRejectedValueOnce(authErr);
-
-      await expect(createPaymentIntent()).rejects.toEqual(authErr);
-    });
-
-    it('propagates 400 cart validation errors (empty cart, out of stock)', async () => {
-      const cartErr = { status: 400, message: 'Cart is empty' };
-      apiClient.post.mockRejectedValueOnce(cartErr);
-
-      await expect(createPaymentIntent()).rejects.toEqual(cartErr);
-    });
-
-    it('propagates 502 Rapyd API unavailable errors', async () => {
-      const gatewayErr = { status: 502, message: 'Rapyd API unavailable' };
-      apiClient.post.mockRejectedValueOnce(gatewayErr);
-
-      await expect(createPaymentIntent()).rejects.toEqual(gatewayErr);
-    });
+    expect(result.clientToken).toBe('tok_snake');
+    expect(result.paymentId).toBe('payment_SNAKE1');
+    expect(result.orderSummary).toEqual({ total: 50.0 });
   });
 
-  // -- createOrder ------------------------------------------------------------
+  it('normalises PascalCase field names', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({
+        ClientToken: 'tok_pascal',
+        PaymentId: 'payment_PASCAL1',
+        Amount: 2000,
+        Currency: 'USD',
+      })
+    );
 
-  describe('createOrder', () => {
-    const VALID_ORDER_DATA = {
-      rapydPaymentId: 'payment_abc123',
-      shippingAddress: {
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john@example.com',
-        address: '123 Main St',
-        city: 'New York',
-        zip: '10001',
-        country: 'US',
+    const result = await createPaymentIntent();
+
+    expect(result.clientToken).toBe('tok_pascal');
+    expect(result.paymentId).toBe('payment_PASCAL1');
+    expect(result.amount).toBe(2000);
+  });
+
+  it('normalises currency to lowercase', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({ clientToken: 't', paymentId: 'p', amount: 0, currency: 'USD' })
+    );
+    const result = await createPaymentIntent();
+    expect(result.currency).toBe('usd');
+  });
+
+  it('defaults currency to "usd" when absent', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({ clientToken: 't', paymentId: 'p', amount: 0 })
+    );
+    const result = await createPaymentIntent();
+    expect(result.currency).toBe('usd');
+  });
+
+  it('defaults amount to 0 when absent', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({ clientToken: 't', paymentId: 'p' })
+    );
+    const result = await createPaymentIntent();
+    expect(result.amount).toBe(0);
+  });
+
+  it('defaults orderSummary to null when absent', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({ clientToken: 't', paymentId: 'p', amount: 0 })
+    );
+    const result = await createPaymentIntent();
+    expect(result.orderSummary).toBeNull();
+  });
+
+  it('handles flat (non-enveloped) response shape', async () => {
+    // Some backend versions return data directly without the `data` wrapper.
+    apiClient.post.mockResolvedValueOnce({
+      data: { clientToken: 'tok_flat', paymentId: 'payment_FLAT', amount: 100 },
+    });
+    const result = await createPaymentIntent();
+    expect(result.clientToken).toBe('tok_flat');
+    expect(result.paymentId).toBe('payment_FLAT');
+  });
+
+  it('coerces string amount to number', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({ clientToken: 't', paymentId: 'p', amount: '3500' })
+    );
+    const result = await createPaymentIntent();
+    expect(typeof result.amount).toBe('number');
+    expect(result.amount).toBe(3500);
+  });
+
+  // ── Error scenarios ───────────────────────────────────────────────────────
+
+  it('re-throws 400 error (empty cart)', async () => {
+    const err = makeApiError(400, 'Cart is empty');
+    apiClient.post.mockRejectedValueOnce(err);
+    await expect(createPaymentIntent()).rejects.toMatchObject({ message: 'Cart is empty' });
+  });
+
+  it('re-throws 401 error (not authenticated)', async () => {
+    const err = makeApiError(401, 'Unauthorized');
+    apiClient.post.mockRejectedValueOnce(err);
+    await expect(createPaymentIntent()).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('re-throws 502 error (Rapyd API unavailable)', async () => {
+    const err = makeApiError(502, 'Rapyd API unavailable');
+    apiClient.post.mockRejectedValueOnce(err);
+    await expect(createPaymentIntent()).rejects.toMatchObject({ status: 502 });
+  });
+
+  it('re-throws network errors (status 0)', async () => {
+    const err = makeApiError(0, 'Network error. Please check your connection.');
+    apiClient.post.mockRejectedValueOnce(err);
+    await expect(createPaymentIntent()).rejects.toMatchObject({ status: 0 });
+  });
+});
+
+// ── createOrder ────────────────────────────────────────────────────────────
+
+describe('createOrder', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const SHIPPING = {
+    firstName: 'John',
+    lastName: 'Doe',
+    email: 'john@example.com',
+    address: '123 Main St',
+    city: 'New York',
+    zip: '10001',
+    country: 'US',
+  };
+
+  // ── Payload construction ─────────────────────────────────────────────────
+
+  it('sends rapydPaymentId and shippingAddress to POST /orders/create', async () => {
+    apiClient.post.mockResolvedValueOnce(
+      makeApiResponse({
+        orderId: 'order-123',
+        orderNumber: 'ORD-0001',
+        status: 'pending',
+        rapydPaymentId: 'payment_XYZ',
+        paymentMethod: 'rapyd',
+        total: 99.99,
+      })
+    );
+
+    await createOrder({ rapydPaymentId: 'payment_XYZ', shippingAddress: SHIPPING });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/orders/create',
+      expect.objectContaining({
+        rapydPaymentId: 'payment_XYZ',
+        shippingAddress: SHIPPING,
+      })
+    );
+  });
+
+  it('strips legacy paymentIntentId from the request payload', async () => {
+    apiClient.post.mockResolvedValueOnce(makeApiResponse({ orderId: 'o1' }));
+
+    await createOrder({
+      rapydPaymentId: 'payment_NEW',
+      paymentIntentId: 'pi_old_stripe_id', // legacy field — must be removed
+      shippingAddress: SHIPPING,
+    });
+
+    const sentPayload = apiClient.post.mock.calls[0][1];
+    expect(sentPayload).not.toHaveProperty('paymentIntentId');
+    expect(sentPayload.rapydPaymentId).toBe('payment_NEW');
+  });
+
+  it('includes optional notes when provided', async () => {
+    apiClient.post.mockResolvedValueOnce(makeApiResponse({ orderId: 'o2' }));
+
+    await createOrder({
+      rapydPaymentId: 'payment_N',
+      shippingAddress: SHIPPING,
+      notes: 'Leave at door',
+    });
+
+    const sentPayload = apiClient.post.mock.calls[0][1];
+    expect(sentPayload.notes).toBe('Leave at door');
+  });
+
+  // ── Response handling ────────────────────────────────────────────────────
+
+  it('returns the full raw response.data', async () => {
+    const mockResponseData = {
+      status: 'success',
+      data: {
+        orderId: 'order-456',
+        orderNumber: 'ORD-0042',
+        status: 'pending',
+        rapydPaymentId: 'payment_ABC',
+        paymentMethod: 'rapyd',
+        total: 149.99,
+        shippingAddress: SHIPPING,
       },
     };
+    apiClient.post.mockResolvedValueOnce({ data: mockResponseData });
 
-    it('calls POST /orders/create with the provided data', async () => {
-      apiClient.post.mockResolvedValueOnce({ data: RAPYD_ORDER_RESPONSE });
-
-      await createOrder(VALID_ORDER_DATA);
-
-      expect(apiClient.post).toHaveBeenCalledTimes(1);
-      expect(apiClient.post).toHaveBeenCalledWith(
-        '/orders/create',
-        expect.objectContaining({
-          rapydPaymentId: 'payment_abc123',
-          shippingAddress: expect.objectContaining({ firstName: 'John' }),
-        })
-      );
+    const result = await createOrder({
+      rapydPaymentId: 'payment_ABC',
+      shippingAddress: SHIPPING,
     });
 
-    it('sends rapydPaymentId (not paymentIntentId) to the backend', async () => {
-      apiClient.post.mockResolvedValueOnce({ data: RAPYD_ORDER_RESPONSE });
+    // createOrder returns response.data (the full envelope)
+    expect(result).toEqual(mockResponseData);
+    expect(result.data.rapydPaymentId).toBe('payment_ABC');
+    expect(result.data.paymentMethod).toBe('rapyd');
+  });
 
-      await createOrder(VALID_ORDER_DATA);
+  // ── Error scenarios ──────────────────────────────────────────────────────
 
-      const sentPayload = apiClient.post.mock.calls[0][1];
-      expect(sentPayload).toHaveProperty('rapydPaymentId', 'payment_abc123');
-      expect(sentPayload).not.toHaveProperty('paymentIntentId');
-    });
+  it('re-throws 400 error (payment not verified)', async () => {
+    const err = makeApiError(400, 'Payment not verified or amount mismatch');
+    apiClient.post.mockRejectedValueOnce(err);
+    await expect(
+      createOrder({ rapydPaymentId: 'payment_bad', shippingAddress: SHIPPING })
+    ).rejects.toMatchObject({ message: 'Payment not verified or amount mismatch' });
+  });
 
-    it('strips legacy paymentIntentId field if accidentally included', async () => {
-      apiClient.post.mockResolvedValueOnce({ data: RAPYD_ORDER_RESPONSE });
+  it('re-throws 409 error (duplicate order for same paymentId)', async () => {
+    const err = makeApiError(409, 'Order already exists for this paymentId');
+    apiClient.post.mockRejectedValueOnce(err);
+    await expect(
+      createOrder({ rapydPaymentId: 'payment_dup', shippingAddress: SHIPPING })
+    ).rejects.toMatchObject({ status: 409 });
+  });
 
-      await createOrder({
-        ...VALID_ORDER_DATA,
-        paymentIntentId: 'pi_old_stripe_intent', // legacy field - must be stripped
-      });
+  it('re-throws 404 error (rapydPaymentId not found in Rapyd)', async () => {
+    const err = makeApiError(404, 'Payment not found');
+    apiClient.post.mockRejectedValueOnce(err);
+    await expect(
+      createOrder({ rapydPaymentId: 'payment_missing', shippingAddress: SHIPPING })
+    ).rejects.toMatchObject({ status: 404 });
+  });
 
-      const sentPayload = apiClient.post.mock.calls[0][1];
-      expect(sentPayload).not.toHaveProperty('paymentIntentId');
-      expect(sentPayload).toHaveProperty('rapydPaymentId', 'payment_abc123');
-    });
+  it('re-throws network errors', async () => {
+    const err = makeApiError(0, 'Network error. Please check your connection.');
+    apiClient.post.mockRejectedValueOnce(err);
+    await expect(
+      createOrder({ rapydPaymentId: 'payment_net', shippingAddress: SHIPPING })
+    ).rejects.toMatchObject({ status: 0 });
+  });
+});
 
-    it('returns the raw response data from the backend', async () => {
-      apiClient.post.mockResolvedValueOnce({ data: RAPYD_ORDER_RESPONSE });
+// ── getOrders ──────────────────────────────────────────────────────────────
 
-      const result = await createOrder(VALID_ORDER_DATA);
+describe('getOrders', () => {
+  beforeEach(() => jest.clearAllMocks());
 
-      expect(result).toEqual(RAPYD_ORDER_RESPONSE);
-    });
+  it('calls GET /orders with no params by default', async () => {
+    const mockData = { orders: [], pagination: { total: 0, page: 1 } };
+    apiClient.get.mockResolvedValueOnce({ data: mockData });
 
-    it('response data contains rapydPaymentId and paymentMethod=rapyd', async () => {
-      apiClient.post.mockResolvedValueOnce({ data: RAPYD_ORDER_RESPONSE });
+    const result = await getOrders();
 
-      const result = await createOrder(VALID_ORDER_DATA);
+    expect(apiClient.get).toHaveBeenCalledWith('/orders', { params: {} });
+    expect(result).toEqual(mockData);
+  });
 
-      expect(result.data.rapydPaymentId).toBe('payment_abc123');
-      expect(result.data.paymentMethod).toBe('rapyd');
-    });
+  it('passes query params to GET /orders', async () => {
+    apiClient.get.mockResolvedValueOnce({ data: { orders: [] } });
 
-    it('includes optional notes when provided', async () => {
-      apiClient.post.mockResolvedValueOnce({ data: RAPYD_ORDER_RESPONSE });
+    await getOrders({ page: 2, limit: 5, status: 'paid' });
 
-      await createOrder({ ...VALID_ORDER_DATA, notes: 'Leave at door' });
-
-      const sentPayload = apiClient.post.mock.calls[0][1];
-      expect(sentPayload).toHaveProperty('notes', 'Leave at door');
-    });
-
-    it('propagates 400 errors (payment not verified or amount mismatch)', async () => {
-      const err = { status: 400, message: 'Payment amount mismatch' };
-      apiClient.post.mockRejectedValueOnce(err);
-
-      await expect(createOrder(VALID_ORDER_DATA)).rejects.toEqual(err);
-    });
-
-    it('propagates 404 errors (rapydPaymentId not found in Rapyd)', async () => {
-      const err = { status: 404, message: 'Payment not found' };
-      apiClient.post.mockRejectedValueOnce(err);
-
-      await expect(createOrder(VALID_ORDER_DATA)).rejects.toEqual(err);
-    });
-
-    it('propagates 409 errors (duplicate order for paymentId)', async () => {
-      const err = { status: 409, message: 'Order already exists for this payment' };
-      apiClient.post.mockRejectedValueOnce(err);
-
-      await expect(createOrder(VALID_ORDER_DATA)).rejects.toEqual(err);
+    expect(apiClient.get).toHaveBeenCalledWith('/orders', {
+      params: { page: 2, limit: 5, status: 'paid' },
     });
   });
 
-  // -- getOrders --------------------------------------------------------------
+  it('re-throws errors', async () => {
+    apiClient.get.mockRejectedValueOnce(makeApiError(500, 'Server error'));
+    await expect(getOrders()).rejects.toMatchObject({ status: 500 });
+  });
+});
 
-  describe('getOrders', () => {
-    it('calls GET /orders with no params when called with defaults', async () => {
-      const mockResponse = {
-        orders: [],
-        pagination: { page: 1, limit: 10, total: 0 },
-      };
-      apiClient.get.mockResolvedValueOnce({ data: mockResponse });
+// ── getOrderById ───────────────────────────────────────────────────────────
 
-      const result = await getOrders();
+describe('getOrderById', () => {
+  beforeEach(() => jest.clearAllMocks());
 
-      expect(apiClient.get).toHaveBeenCalledWith('/orders', { params: {} });
-      expect(result).toEqual(mockResponse);
-    });
+  it('calls GET /orders/:id', async () => {
+    const orderData = {
+      success: true,
+      data: {
+        id: 'order-xyz',
+        rapydPaymentId: 'payment_XYZ',
+        paymentMethod: 'rapyd',
+        status: 'paid',
+        total: 89.99,
+      },
+    };
+    apiClient.get.mockResolvedValueOnce({ data: orderData });
 
-    it('passes page and limit query params', async () => {
-      apiClient.get.mockResolvedValueOnce({
-        data: { orders: [], pagination: { page: 2, limit: 5, total: 15 } },
-      });
+    const result = await getOrderById('order-xyz');
 
-      await getOrders({ page: 2, limit: 5 });
+    expect(apiClient.get).toHaveBeenCalledWith('/orders/order-xyz');
+    expect(result).toEqual(orderData);
+    expect(result.data.rapydPaymentId).toBe('payment_XYZ');
+    expect(result.data.paymentMethod).toBe('rapyd');
+  });
 
-      expect(apiClient.get).toHaveBeenCalledWith('/orders', {
-        params: { page: 2, limit: 5 },
-      });
-    });
-
-    it('passes status filter param', async () => {
-      apiClient.get.mockResolvedValueOnce({
-        data: { orders: [], pagination: {} },
-      });
-
-      await getOrders({ status: 'paid' });
-
-      expect(apiClient.get).toHaveBeenCalledWith('/orders', {
-        params: { status: 'paid' },
-      });
-    });
-
-    it('returns list of orders with Rapyd payment fields', async () => {
-      const mockOrders = [
-        {
-          id: 'order_1',
-          rapydPaymentId: 'payment_111',
-          paymentMethod: 'rapyd',
-          status: 'paid',
-          total: 89.99,
-        },
-        {
-          id: 'order_2',
-          rapydPaymentId: 'payment_222',
-          paymentMethod: 'rapyd',
-          status: 'shipped',
-          total: 129.99,
-        },
-      ];
-      apiClient.get.mockResolvedValueOnce({
-        data: { orders: mockOrders, pagination: { page: 1, limit: 10, total: 2 } },
-      });
-
-      const result = await getOrders();
-
-      expect(result.orders).toHaveLength(2);
-      expect(result.orders[0].rapydPaymentId).toBe('payment_111');
-      expect(result.orders[0].paymentMethod).toBe('rapyd');
-      expect(result.orders[1].rapydPaymentId).toBe('payment_222');
-    });
-
-    it('propagates 401 authentication errors', async () => {
-      const authErr = { status: 401, message: 'Unauthorized' };
-      apiClient.get.mockRejectedValueOnce(authErr);
-
-      await expect(getOrders()).rejects.toEqual(authErr);
+  it('re-throws 404 error when order not found', async () => {
+    apiClient.get.mockRejectedValueOnce(makeApiError(404, 'Order not found'));
+    await expect(getOrderById('not-found')).rejects.toMatchObject({
+      status: 404,
+      message: 'Order not found',
     });
   });
 
-  // -- getOrderById -----------------------------------------------------------
-
-  describe('getOrderById', () => {
-    it('calls GET /orders/:id with the provided ID', async () => {
-      const mockResponse = {
-        success: true,
-        data: {
-          id: 'order_xyz789',
-          rapydPaymentId: 'payment_abc123',
-          paymentMethod: 'rapyd',
-          status: 'paid',
-        },
-      };
-      apiClient.get.mockResolvedValueOnce({ data: mockResponse });
-
-      const result = await getOrderById('order_xyz789');
-
-      expect(apiClient.get).toHaveBeenCalledWith('/orders/order_xyz789');
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('response data includes rapydPaymentId and paymentMethod=rapyd', async () => {
-      const mockResponse = {
-        success: true,
-        data: {
-          id: 'order_rapyd_1',
-          rapydPaymentId: 'payment_rapyd_001',
-          paymentMethod: 'rapyd',
-          status: 'paid',
-          total: 99.99,
-        },
-      };
-      apiClient.get.mockResolvedValueOnce({ data: mockResponse });
-
-      const result = await getOrderById('order_rapyd_1');
-
-      expect(result.data.rapydPaymentId).toBe('payment_rapyd_001');
-      expect(result.data.paymentMethod).toBe('rapyd');
-    });
-
-    it('propagates 404 errors for unknown order IDs', async () => {
-      const notFoundErr = { status: 404, message: 'Order not found' };
-      apiClient.get.mockRejectedValueOnce(notFoundErr);
-
-      await expect(getOrderById('non_existent_id')).rejects.toEqual(notFoundErr);
-    });
-
-    it('propagates 401 authentication errors', async () => {
-      const authErr = { status: 401, message: 'Unauthorized' };
-      apiClient.get.mockRejectedValueOnce(authErr);
-
-      await expect(getOrderById('order_1')).rejects.toEqual(authErr);
-    });
-
-    it('propagates 403 errors for orders belonging to other users', async () => {
-      const forbiddenErr = { status: 403, message: 'Forbidden' };
-      apiClient.get.mockRejectedValueOnce(forbiddenErr);
-
-      await expect(getOrderById('other_users_order')).rejects.toEqual(forbiddenErr);
-    });
+  it('re-throws 401 error when not authenticated', async () => {
+    apiClient.get.mockRejectedValueOnce(makeApiError(401, 'Unauthorized'));
+    await expect(getOrderById('order-123')).rejects.toMatchObject({ status: 401 });
   });
 });
