@@ -8,3 +8,4 @@ export * as productsApi from './productsApi';
 export * as authApi from './authApi';
 export * as cartApi from './cartApi';
 export * as ordersApi from './ordersApi';
+export * as yupooApi from './yupooApi';
