@@ -3,8 +3,9 @@
  * Used with React Hook Form's zodResolver.
  *
  * Note: Card field validation has been removed from checkoutSchema.
- * Stripe's CardElement handles all card validation client-side in a
- * PCI-compliant manner. The checkout form only validates contact/shipping.
+ * Rapyd's RapydCardElement handles all card validation client-side in a
+ * PCI-compliant manner via a hosted iframe. The checkout form only
+ * validates contact/shipping fields.
  */
 import { z } from 'zod';
 
@@ -49,11 +50,12 @@ export const registerSchema = z
 // ---------------------------------------------------------------------------
 // Checkout schema
 // ---------------------------------------------------------------------------
-// Card fields are intentionally excluded — Stripe's CardElement handles
-// card number, expiry, and CVV validation in a PCI-compliant iframe.
+// Card fields are intentionally excluded — Rapyd's RapydCardElement handles
+// card number, expiry, and CVV validation in a PCI-compliant hosted iframe.
+// The checkout schema only covers contact and shipping fields.
 
 export const checkoutSchema = z.object({
-  // Contact / Shipping
+  // Contact
   firstName: z
     .string()
     .min(1, 'First name is required')
@@ -73,6 +75,7 @@ export const checkoutSchema = z.object({
       (val) => !val || /^[+]?[\d\s\-()]{7,20}$/.test(val),
       'Please enter a valid phone number'
     ),
+  // Shipping
   address: z
     .string()
     .min(1, 'Address is required')
@@ -90,7 +93,7 @@ export const checkoutSchema = z.object({
     .min(1, 'Country is required'),
 });
 
-// Country list for the checkout form
+// Country list for the checkout form select input
 export const COUNTRIES = [
   { value: '', label: 'Select country...' },
   { value: 'US', label: 'United States' },
