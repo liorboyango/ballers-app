@@ -244,4 +244,4 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'he', label: 'עברית', dir: 'rtl' },
 ];
 
-export const DEFAULT_LANGUAGE = 'en';
+export const DEFAULT_LANGUAGE = 'he';
