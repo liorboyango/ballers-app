@@ -13,12 +13,19 @@
  * - Loading spinner on the Start Import button during submission
  * - Confirmation before import starts
  * - Defaults persisted to sessionStorage across tab switches
+ *
+ * Task 4 adds:
+ * - CrawlLoadingOverlay during initial API call
+ * - Rich success/error/warning toasts with counts and details
+ * - Smooth transition into progress stage
+ * - Enhanced UI feedback throughout
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CategoryTree from './components/CategoryTree';
 import ImportDefaults from './components/ImportDefaults';
 import CrawlProgress from './components/CrawlProgress';
+import CrawlLoadingOverlay from './components/CrawlLoadingOverlay';
 import { getYupooCategories, crawlCategories } from '../../services/yupooApi';
 import { useToast } from '../../context/ToastContext';
 
@@ -46,7 +53,6 @@ function loadDefaults() {
     const stored = sessionStorage.getItem(DEFAULTS_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      // Validate stored value has expected shape
       if (
         typeof parsed.price === 'number' &&
         typeof parsed.kitType === 'string' &&
@@ -67,16 +73,16 @@ function saveDefaults(defaults) {
   try {
     sessionStorage.setItem(DEFAULTS_STORAGE_KEY, JSON.stringify(defaults));
   } catch {
-    // ignore storage errors (e.g. private mode quota)
+    // ignore
   }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Validate import defaults. Returns a map of field → error message.
+ * Validate import defaults.
  * @param {Object} defaults
- * @returns {Object} errors object (empty means valid)
+ * @returns {Object} errors map (empty → valid)
  */
 function validateDefaults(defaults) {
   const errors = {};
@@ -93,11 +99,7 @@ function validateDefaults(defaults) {
 }
 
 /**
- * Build the list of selected top-level categories with their selected children.
- * Only top-level categories with themselves or some children selected are included.
- * @param {Object[]} nodes - Full category tree
- * @param {Set<string>} selected - Set of selected IDs
- * @returns {Object[]} Filtered tree of selected items
+ * Build the list of selected categories (with selected children only).
  */
 const buildSelectedTree = (nodes, selected) => {
   const result = [];
@@ -180,14 +182,9 @@ function StageIndicator({ stage }) {
 
 // ─── ConfirmImportDialog ──────────────────────────────────────────────────────
 
-/**
- * Simple confirmation dialog shown before starting import.
- * Displays category count and expected behaviour.
- */
 function ConfirmImportDialog({ categoryCount, onConfirm, onCancel }) {
   const dialogRef = useRef(null);
 
-  // Trap focus inside dialog
   useEffect(() => {
     const el = dialogRef.current;
     if (!el) return;
@@ -290,10 +287,6 @@ function ConfirmImportDialog({ categoryCount, onConfirm, onCancel }) {
 
 // ─── ReviewForm ───────────────────────────────────────────────────────────────
 
-/**
- * Stage 2 review form — validates defaults and triggers import.
- * Wrapped in a proper <form> element for native validation support.
- */
 function ReviewForm({
   defaults,
   onDefaultsChange,
@@ -307,11 +300,9 @@ function ReviewForm({
   const [showConfirm, setShowConfirm] = useState(false);
   const [touched, setTouched] = useState({});
 
-  // Re-validate whenever defaults change (only for touched fields)
   useEffect(() => {
     if (Object.keys(touched).length > 0) {
       const errors = validateDefaults(defaults);
-      // Only show errors for touched fields
       const filteredErrors = {};
       Object.keys(errors).forEach((key) => {
         if (touched[key]) filteredErrors[key] = errors[key];
@@ -327,7 +318,6 @@ function ReviewForm({
   const handleDefaultsChange = useCallback(
     (field, value) => {
       onDefaultsChange(field, value);
-      // Mark field as touched when it changes
       setTouched((prev) => ({ ...prev, [field]: true }));
     },
     [onDefaultsChange]
@@ -335,25 +325,16 @@ function ReviewForm({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    // Mark all fields as touched to show all errors
     setTouched({ price: true, stock: true, sizes: true });
-
     const errors = validateDefaults(defaults);
     setValidationErrors(errors);
-
     if (Object.keys(errors).length > 0) {
-      // Find first error field and focus it
       const firstErrorField = Object.keys(errors)[0];
       const el = document.getElementById(`imp-${firstErrorField}`);
       if (el) el.focus();
       return;
     }
-
-    if (selectedCount === 0) {
-      return; // Button should be disabled, but guard anyway
-    }
-
+    if (selectedCount === 0) return;
     setShowConfirm(true);
   };
 
@@ -389,9 +370,7 @@ function ReviewForm({
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-bold text-ink">Import Defaults</h3>
-            <span className="text-xs text-ink-muted">
-              Applied to all imported products
-            </span>
+            <span className="text-xs text-ink-muted">Applied to all imported products</span>
           </div>
           <ImportDefaults
             defaults={defaults}
@@ -402,7 +381,7 @@ function ReviewForm({
           />
         </div>
 
-        {/* Selected categories summary card */}
+        {/* Selected categories summary */}
         <div className="card p-6">
           <h3 className="text-base font-bold text-ink mb-3">
             Selected Categories ({selectedTree.length})
@@ -549,11 +528,12 @@ function YupooImportPage() {
   // Selection
   const [selected, setSelected] = useState(new Set());
 
-  // Defaults — persisted to sessionStorage
+  // Defaults
   const [defaults, setDefaults] = useState(loadDefaults);
 
   // Crawl state
   const [crawlLoading, setCrawlLoading] = useState(false);
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
   const [crawlResult, setCrawlResult] = useState(null);
   const [crawlError, setCrawlError] = useState(null);
 
@@ -579,6 +559,10 @@ function YupooImportPage() {
         const { categories: cats, cachedAt } = await getYupooCategories(forceRefresh);
         setCategories(cats);
         setLastFetched(cachedAt || new Date().toISOString());
+
+        if (forceRefresh) {
+          toast.success(`Categories refreshed — ${cats.length} found.`);
+        }
       } catch (err) {
         const msg = err?.message || 'Failed to load categories. Please try again.';
         setCategoriesError(msg);
@@ -590,7 +574,6 @@ function YupooImportPage() {
     [toast]
   );
 
-  // Initial fetch on mount
   useEffect(() => {
     fetchCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -627,49 +610,104 @@ function YupooImportPage() {
 
   // ─── Import submission ───────────────────────────────────────────────────────
 
-  /**
-   * Executes the crawl API call. Called after user confirms in the dialog.
-   * Transitions to IMPORT stage and submits POST /admin/yupoo/crawl.
-   */
   const handleStartImport = useCallback(async () => {
-    setStage(STAGES.IMPORT);
+    // Immediately show overlay + transition to import stage
+    setShowLoadingOverlay(true);
     setCrawlLoading(true);
     setCrawlResult(null);
     setCrawlError(null);
+    setStage(STAGES.IMPORT);
 
-    // Build the selected category tree to send
     const selectedTree = buildSelectedTree(categories, selected);
+    const categoryNames = selectedTree
+      .flatMap((c) => [
+        c.name,
+        ...(c.subcategories || []).map((s) => s.name),
+      ])
+      .slice(0, 3);
+
+    // Toast to inform user the crawl has started
+    toast.info(
+      `Import started for ${selected.size} categor${
+        selected.size !== 1 ? 'ies' : 'y'
+      }${categoryNames.length > 0 ? ` (${categoryNames.join(', ')}${selected.size > 3 ? '…' : ''})` : ''}.`
+    );
 
     try {
       const res = await crawlCategories(selectedTree, defaults);
       const data = res?.data ?? res;
+
       setCrawlResult(data);
+      setShowLoadingOverlay(false);
 
       const created = data?.created ?? 0;
       const skipped = data?.skipped ?? 0;
       const errCount = Array.isArray(data?.errors) ? data.errors.length : 0;
 
-      if (created > 0) {
+      // ── Compose contextual toast ──
+      if (created > 0 && errCount === 0) {
+        // Full success
         toast.success(
-          `Import complete! ${created} product${created !== 1 ? 's' : ''} created.`
+          `Import complete! ${created} product${
+            created !== 1 ? 's' : ''
+          } added to your store.${
+            skipped > 0
+              ? ` ${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped.`
+              : ''
+          }`
         );
-      } else if (errCount > 0) {
+      } else if (created > 0 && errCount > 0) {
+        // Partial success
+        toast.warning(
+          `Import finished with issues: ${created} created, ${errCount} error${
+            errCount !== 1 ? 's' : ''
+          }.${
+            skipped > 0 ? ` ${skipped} skipped.` : ''
+          } Check the details below.`
+        );
+      } else if (errCount > 0 && created === 0) {
+        // All failed
         toast.error(
-          `Import finished with ${errCount} error${errCount !== 1 ? 's' : ''}.`
+          `Import failed — ${errCount} error${
+            errCount !== 1 ? 's' : ''
+          } occurred. No products were created.`
+        );
+      } else if (skipped > 0 && created === 0) {
+        // All duplicates
+        toast.info(
+          `Import finished — all ${skipped} product${
+            skipped !== 1 ? 's' : ''
+          } already exist in your store (skipped).`
         );
       } else {
-        toast.info(
-          `Import finished. ${skipped} product${
-            skipped !== 1 ? 's' : ''
-          } skipped (duplicates).`
-        );
+        toast.info('Import finished. No products were created.');
       }
     } catch (err) {
       const msg = err?.message || 'Import failed. Please try again.';
       setCrawlError(msg);
-      toast.error(msg);
+      setShowLoadingOverlay(false);
+
+      // Determine if it's a timeout or network error for better UX
+      const isTimeout =
+        err?.originalError?.code === 'ECONNABORTED' ||
+        msg.toLowerCase().includes('timeout');
+      const isNetwork =
+        err?.status === 0 || msg.toLowerCase().includes('network');
+
+      if (isTimeout) {
+        toast.error(
+          'Import timed out. The server may still be processing — check your products list in a few minutes.'
+        );
+      } else if (isNetwork) {
+        toast.error(
+          'Network error during import. Please check your connection and try again.'
+        );
+      } else {
+        toast.error(`Import failed: ${msg}`);
+      }
     } finally {
       setCrawlLoading(false);
+      setShowLoadingOverlay(false);
     }
   }, [categories, defaults, selected, toast]);
 
@@ -692,6 +730,12 @@ function YupooImportPage() {
 
   return (
     <div className="space-y-6 page-enter">
+      {/* Loading overlay for initial crawl start */}
+      <CrawlLoadingOverlay
+        visible={showLoadingOverlay}
+        message="Importing products…"
+      />
+
       <StageIndicator stage={stage} />
 
       {/* ── Stage 1: Browse ── */}
@@ -742,7 +786,7 @@ function YupooImportPage() {
         </div>
       )}
 
-      {/* ── Stage 2: Review & Configure (form) ── */}
+      {/* ── Stage 2: Review & Configure ── */}
       {stage === STAGES.REVIEW && (
         <ReviewForm
           defaults={defaults}

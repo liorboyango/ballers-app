@@ -135,6 +135,8 @@
   }
 }
 
+/* ── Page transitions ──────────────────────────────────────────────────────── */
+
 .page-enter {
   animation: pageEnter 200ms ease both;
 }
@@ -142,4 +144,80 @@
 @keyframes pageEnter {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Toast animations ─────────────────────────────────────────────────────── */
+
+.animate-toast-in {
+  animation: toastIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* ── Crawl progress shimmer ───────────────────────────────────────────────── */
+
+/**
+ * Shimmer effect for the progress bar during an active crawl.
+ * A bright streak sweeps left-to-right over the muted base color.
+ */
+.crawl-progress-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(31, 110, 58, 0.55) 40%,
+    rgba(31, 110, 58, 0.85) 55%,
+    rgba(31, 110, 58, 0.55) 70%,
+    transparent 100%
+  );
+  animation: crawlShimmer 1.8s ease-in-out infinite;
+  background-size: 200% 100%;
+}
+
+@keyframes crawlShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Crawl result enter animation ────────────────────────────────────────── */
+
+.crawl-result-enter {
+  animation: crawlResultEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes crawlResultEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Crawl loading overlay dot animation ─────────────────────────────────── */
+
+@keyframes crawlDot {
+  0%, 80%, 100% { transform: translateY(0);   opacity: 0.4; }
+  40%            { transform: translateY(-4px); opacity: 1;   }
+}
+
+/* ── Existing slide-in (legacy Toast.js) ─────────────────────────────────── */
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out both;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
 }
