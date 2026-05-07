@@ -1,16 +1,13 @@
 /**
- * CheckoutPage - Full checkout experience with Rapyd integration.
- * Left column: CheckoutForm (contact, shipping, Rapyd payment).
+ * CheckoutPage - Full checkout experience.
+ * Left column: CheckoutForm (contact, shipping; submits to Rapyd Hosted Checkout).
  * Right column: Order summary with cart items.
- * Wraps CheckoutForm with Rapyd Elements provider.
  *
- * The page fetches the server-calculated order total from the backend
- * (via the payment intent endpoint) to display accurate pricing that
- * matches what Rapyd will charge — preventing client-side price discrepancies.
+ * The displayed totals are estimates from the local cart. The authoritative
+ * total is calculated server-side when the Rapyd Checkout session is created.
  */
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { RapydProvider } from '@rapyd/client-web';
 import CheckoutForm from '../components/forms/CheckoutForm';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
@@ -71,46 +68,24 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items: cartItems, totalPrice, loading: cartLoading } = useCart();
   const { user, loading: authLoading } = useAuth();
-  const [completedOrder, setCompletedOrder] = useState(null);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/login', { state: { from: { pathname: '/checkout' } } });
     }
   }, [user, authLoading, navigate]);
 
-  // Redirect to cart if cart is empty (and not loading)
   useEffect(() => {
-    if (!cartLoading && cartItems.length === 0 && !completedOrder) {
+    if (!cartLoading && cartItems.length === 0) {
       navigate('/cart');
     }
-  }, [cartItems, cartLoading, navigate, completedOrder]);
+  }, [cartItems, cartLoading, navigate]);
 
-  // Calculate totals from local cart data for display.
-  // The actual charge amount is calculated server-side when the payment intent is created.
   const items = cartItems;
   const subtotal = totalPrice || 0;
   const shipping = subtotal >= 100 ? 0 : 9.99;
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;
-
-  /**
-   * Handle successful order placement.
-   * Called by CheckoutForm after payment is confirmed and order is created.
-   * Redirects to the order success page with order data in navigation state.
-   */
-  const handleOrderSuccess = useCallback((order) => {
-    setCompletedOrder(order);
-    const orderId = order?.id || order?._id || '';
-    navigate(
-      orderId ? `/order-success/${orderId}` : '/order-success',
-      {
-        state: { order },
-        replace: true,
-      }
-    );
-  }, [navigate]);
 
   if (authLoading || cartLoading) {
     return (
@@ -152,22 +127,10 @@ export default function CheckoutPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          {/* ── Left: Checkout Form wrapped in Rapyd Provider ── */}
+          {/* ── Left: Checkout Form ── */}
           <div className="lg:col-span-3">
             <div className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-6 sm:p-8">
-              {/*
-               * RapydProvider must wrap any component that uses Rapyd hooks
-               * (useRapyd, useRapydElements, RapydCardElement, etc.).
-               * clientKey is the publishable API key from the environment.
-               */}
-              <RapydProvider
-                clientKey={process.env.REACT_APP_RAPYD_PUBLISHABLE_KEY || ''}
-              >
-                <CheckoutForm
-                  onOrderSuccess={handleOrderSuccess}
-                  orderTotal={total}
-                />
-              </RapydProvider>
+              <CheckoutForm orderTotal={total} />
             </div>
           </div>
 
@@ -221,12 +184,6 @@ export default function CheckoutPage() {
                     <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                   </svg>
                   SSL encrypted &amp; secure checkout
-                </div>
-                <div className="flex items-center gap-2 text-xs text-[#A8B2C1]">
-                  <svg className="w-4 h-4 text-[#27AE60] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  Official World Cup 2026 Licensed
                 </div>
                 <div className="flex items-center gap-2 text-xs text-[#A8B2C1]">
                   <svg className="w-4 h-4 text-[#27AE60] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

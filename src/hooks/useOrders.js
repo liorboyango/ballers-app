@@ -1,9 +1,9 @@
 /**
  * useOrders Hook
- * Custom hook for fetching and creating orders with loading and error states.
+ * Custom hook for fetching orders with loading and error states.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { getOrders, getOrderById, createOrder } from '../services/ordersApi';
+import { getOrders, getOrderById } from '../services/ordersApi';
 
 /**
  * Hook to fetch user's orders
@@ -72,37 +72,6 @@ export const useOrder = (id) => {
   }, [fetchOrder]);
 
   return { order, loading, error, refetch: fetchOrder };
-};
-
-/**
- * Hook to create an order
- * @returns {Object} - { submitOrder, loading, error, success, orderId }
- */
-export const useCreateOrder = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
-  const [orderId, setOrderId] = useState(null);
-
-  const submitOrder = useCallback(async (orderData) => {
-    setLoading(true);
-    setError(null);
-    setSuccess(false);
-    setOrderId(null);
-    try {
-      const result = await createOrder(orderData);
-      setSuccess(true);
-      setOrderId(result.order?.id || null);
-      return result;
-    } catch (err) {
-      setError(err.message || 'Failed to place order');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { submitOrder, loading, error, success, orderId };
 };
 
 export default useOrders;

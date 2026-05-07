@@ -21,6 +21,7 @@ const ProductsPage = lazy(() => import('./pages/ProductsPage'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
 const CartPage = lazy(() => import('./pages/CartPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
+const CheckoutCompletePage = lazy(() => import('./pages/CheckoutCompletePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage'));
 const AdminOverview = lazy(() => import('./pages/admin/AdminOverview'));
@@ -69,6 +70,7 @@ function AppShell() {
             <Route path="/product/:id" element={<ProductDetailPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/checkout/complete" element={<CheckoutCompletePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<LoginPage />} />
             <Route path="/order-success/:id" element={<OrderSuccessPage />} />
