@@ -63,9 +63,10 @@ export const CartProvider = ({ children }) => {
   const applyCartData = useCallback((cartData) => {
     const itemsArr = (cartData?.items || []).map((item) => ({
       ...item,
+      _id: item._id ?? item.id,
       price: item.price ?? item.product?.price ?? 0,
     }));
-    setCartId(cartData?._id || null);
+    setCartId(cartData?._id ?? cartData?.id ?? null);
     setItems(itemsArr);
     updateTotals(itemsArr);
   }, [updateTotals]);

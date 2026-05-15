@@ -118,7 +118,7 @@ function CartPage() {
   });
   const onChange = (k) => (e) => setShipping((p) => ({ ...p, [k]: e.target.value }));
 
-  const estShipping = items.length ? 15 : 0;
+  const estShipping = 0;
   const total = subtotal + estShipping;
 
   if (items.length === 0) {
@@ -222,7 +222,7 @@ function CartPage() {
                 </div>
                 <div className="flex justify-between text-ink-soft">
                   <span>Estimated Shipping</span>
-                  <span className="text-ink">${estShipping.toFixed(2)}</span>
+                  <span className="text-accent-success font-medium">Free</span>
                 </div>
                 <div className="flex justify-between text-ink-soft">
                   <span>Tax</span>

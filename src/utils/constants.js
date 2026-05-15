@@ -21,11 +21,25 @@ export const WC_GROUPS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 /** Pagination defaults */
 export const DEFAULT_PAGE_SIZE = 12;
 
-/** Free shipping threshold */
+/** Free shipping threshold (for non-free-shipping countries) */
 export const FREE_SHIPPING_THRESHOLD = 100;
 
 /** Standard shipping cost */
 export const SHIPPING_COST = 9.99;
+
+/** ISO country codes that always ship free, regardless of subtotal */
+export const FREE_SHIPPING_COUNTRIES = new Set(['IL']);
+
+/**
+ * Resolve the shipping cost for an order.
+ * @param {string} [country] - ISO country code of the shipping destination
+ * @param {number} [subtotal] - Cart subtotal
+ * @returns {number} shipping cost (0 = free)
+ */
+export const getShippingCost = (country, subtotal = 0) => {
+  if (country && FREE_SHIPPING_COUNTRIES.has(country)) return 0;
+  return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
+};
 
 /** Tax rate (applied server-side, shown client-side for display) */
 export const TAX_RATE = 0.08;

@@ -1,13 +1,17 @@
 /**
  * Products Page — light theme product grid with filter sidebar.
- * Products and their imagery come from the backend via useProducts.
+ * Products and their imagery come from the backend via getProducts.
+ * Infinite scroll loads additional pages as the user reaches the bottom.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { KIT_TYPES, SIZES } from '../utils/constants';
-import { useProducts } from '../hooks/useProducts';
+import { getProducts } from '../services/productsApi';
 import { getProductImage } from '../utils/imageUrl';
 import { useTranslation } from '../context/LanguageContext';
+import useDebounce from '../hooks/useDebounce';
+
+const PAGE_SIZE = 24;
 
 function ProductCard({ product }) {
   const { t } = useTranslation();
@@ -173,18 +177,104 @@ function ProductsPage() {
   const [filters, setFilters] = useState({ kitType: '', size: '', minPrice: 0, maxPrice: 300 });
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+
+  const [products, setProducts] = useState([]);
+  const [total, setTotal] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
 
   const apiParams = useMemo(() => {
-    const p = { limit: 24 };
+    const p = {};
     if (teamId) p.teamId = teamId;
     if (filters.kitType) p.kitType = filters.kitType;
     if (filters.size) p.size = filters.size;
     if (filters.minPrice) p.minPrice = filters.minPrice;
     if (filters.maxPrice && filters.maxPrice < 300) p.maxPrice = filters.maxPrice;
+    const q = debouncedSearch.trim();
+    if (q) p.search = q;
     return p;
-  }, [teamId, filters]);
+  }, [teamId, filters, debouncedSearch]);
 
-  const { products, loading, error } = useProducts(apiParams);
+  // Initial / filter-change fetch (page 1 — replaces products)
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setPage(1);
+
+    getProducts({ ...apiParams, page: 1, limit: PAGE_SIZE })
+      .then((res) => {
+        if (cancelled) return;
+        const incoming = res.data || [];
+        setProducts(incoming);
+        setTotal(
+          typeof res.pagination?.total === 'number' ? res.pagination.total : null
+        );
+        setHasMore(
+          res.pagination
+            ? Boolean(res.pagination.hasNextPage)
+            : incoming.length === PAGE_SIZE
+        );
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(typeof err?.message === 'string' ? err.message : t('products.loadFailed'));
+        setProducts([]);
+        setTotal(null);
+        setHasMore(false);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiParams, t]);
+
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const res = await getProducts({ ...apiParams, page: nextPage, limit: PAGE_SIZE });
+      const incoming = res.data || [];
+      setProducts((prev) => [...prev, ...incoming]);
+      setPage(nextPage);
+      if (typeof res.pagination?.total === 'number') {
+        setTotal(res.pagination.total);
+      }
+      setHasMore(
+        res.pagination
+          ? Boolean(res.pagination.hasNextPage)
+          : incoming.length === PAGE_SIZE
+      );
+    } catch {
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [apiParams, page, hasMore, loading, loadingMore]);
+
+  // IntersectionObserver — trigger loadMore when sentinel enters viewport
+  const sentinelRef = useRef(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    if (!hasMore || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { rootMargin: '300px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMore, hasMore, loading]);
 
   const handleFilterChange = (key, value) => {
     if (key === 'reset') {
@@ -195,20 +285,9 @@ function ProductsPage() {
     }
   };
 
-  const visibleProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return products || [];
-    return (products || []).filter((p) => {
-      const teamName =
-        (typeof p.team === 'object' && p.team?.name) || p.teamName || '';
-      const haystack = `${p.name || ''} ${teamName}`.toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [products, search]);
-
   const teamName = teamId
-    ? (products || []).find((p) => (p._id || p.id) === teamId)?.team?.name ||
-      (products || []).find((p) => (p._id || p.id) === teamId)?.teamName
+    ? products.find((p) => (p._id || p.id) === teamId)?.team?.name ||
+      products.find((p) => (p._id || p.id) === teamId)?.teamName
     : null;
   const heading = teamName ? t('products.titleTeam', { team: teamName }) : t('products.titleAll');
 
@@ -227,7 +306,12 @@ function ProductsPage() {
                 <p className="text-sm text-ink-muted mt-1">
                   {loading
                     ? t('products.loading')
-                    : t(visibleProducts.length === 1 ? 'products.countOne' : 'products.countMany', { n: visibleProducts.length })}
+                    : (() => {
+                        const n = total != null ? total : products.length;
+                        const key = n === 1 ? 'products.countOne' : 'products.countMany';
+                        const label = t(key, { n });
+                        return total == null && hasMore ? `${label}+` : label;
+                      })()}
                 </p>
               </div>
 
@@ -279,7 +363,7 @@ function ProductsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 {[0, 1, 2, 3, 4, 5].map((i) => <CardSkeleton key={i} />)}
               </div>
-            ) : visibleProducts.length === 0 ? (
+            ) : products.length === 0 ? (
               <div className="card p-10 text-center">
                 <p className="text-ink-muted">{t('products.noMatch')}</p>
                 <button onClick={() => handleFilterChange('reset', null)} className="btn-secondary mt-4">
@@ -287,11 +371,19 @@ function ProductsPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                {visibleProducts.map((product) => (
-                  <ProductCard key={product._id || product.id} product={product} />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {products.map((product) => (
+                    <ProductCard key={product._id || product.id} product={product} />
+                  ))}
+                </div>
+
+                {hasMore && (
+                  <div ref={sentinelRef} className="mt-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {loadingMore && [0, 1, 2].map((i) => <CardSkeleton key={`more-${i}`} />)}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

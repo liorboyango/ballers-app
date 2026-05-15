@@ -271,16 +271,14 @@ const CartDrawer = () => {
             {/* Shipping */}
             <div className="flex justify-between text-sm">
               <span className="text-[#A8B2C1]">Shipping</span>
-              <span className="text-[#27AE60] font-medium">
-                {totalPrice >= 100 ? 'Free' : '$9.99'}
-              </span>
+              <span className="text-[#27AE60] font-medium">Free</span>
             </div>
 
             {/* Total */}
             <div className="flex justify-between text-base font-bold border-t border-[#2A3550] pt-3">
               <span className="text-white">Total</span>
               <span className="text-[#E8C547]">
-                ${(totalPrice + (totalPrice >= 100 ? 0 : 9.99)).toFixed(2)}
+                ${totalPrice.toFixed(2)}
               </span>
             </div>
 

@@ -83,7 +83,9 @@ export default function CheckoutPage() {
 
   const items = cartItems;
   const subtotal = totalPrice || 0;
-  const shipping = subtotal >= 100 ? 0 : 9.99;
+  // Only Israel is offered as a shipping destination (see COUNTRIES in utils/validation.js),
+  // and Israel is in FREE_SHIPPING_COUNTRIES, so every order ships free.
+  const shipping = 0;
   const tax = subtotal * 0.08;
   const total = subtotal + shipping + tax;
 

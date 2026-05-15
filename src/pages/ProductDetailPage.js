@@ -285,7 +285,7 @@ function ProductDetailPage() {
                   <p className="text-accent-danger text-xs mt-2" role="alert">{addError}</p>
                 )}
                 <p className="text-center text-xs text-ink-muted mt-3">
-                  <span aria-hidden="true">🚚</span> Free shipping on orders over $100
+                  <span aria-hidden="true">🚚</span> Free shipping
                 </p>
               </div>
             </div>
