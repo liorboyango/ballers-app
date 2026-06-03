@@ -5,7 +5,7 @@
 export const translations = {
   en: {
     brand: {
-      name: 'HaBallerim',
+      name: 'HaBallerim  🪖',
       tagline: 'Wear the Game',
     },
     nav: {
@@ -122,7 +122,7 @@ export const translations = {
   },
   he: {
     brand: {
-      name: 'הבולרים',
+      name: 'הבולרים 🪖',
       tagline: 'לבשו את המשחק',
     },
     nav: {
