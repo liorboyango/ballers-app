@@ -1,5 +1,5 @@
 /**
- * CheckoutForm — collects contact + shipping, then redirects to Rapyd Hosted Checkout.
+ * CheckoutForm — collects contact + shipping, then redirects to Airwallex Hosted Checkout.
  *
  * Flow:
  *   1. Validate contact/shipping fields (react-hook-form + zod)
@@ -7,25 +7,32 @@
  *      -> { checkoutId, redirectUrl }
  *   3. window.location.assign(redirectUrl)
  *
- * Card data is collected on Rapyd's hosted page; this form never sees it.
- * After payment, Rapyd redirects to /checkout/complete?checkoutId=<id>,
+ * Card data is collected on Airwallex's hosted page; this form never sees it.
+ * After payment, Airwallex redirects to /checkout/complete?checkoutId=<id>,
  * which finalizes the order. The cart is cleared at that point, not here —
  * users who abandon the hosted page should still see their cart.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { checkoutSchema, COUNTRIES } from '../../utils/validation';
+import { makeCheckoutSchema, getCountries } from '../../utils/validation';
 import { FormInput, FormSelect, SectionHeading } from './FormField';
 import { createCheckoutSession } from '../../services/ordersApi';
+import { useTranslation } from '../../context/LanguageContext';
+
+const PAYMENT_PROVIDER = 'Airwallex';
 
 /**
  * @param {object} props
  * @param {number} [props.orderTotal] - Total order amount for display on submit button
  */
 export default function CheckoutForm({ orderTotal }) {
+  const { t } = useTranslation();
   const [serverError, setServerError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const checkoutSchema = useMemo(() => makeCheckoutSchema(t), [t]);
+  const countries = useMemo(() => getCountries(t), [t]);
 
   const {
     register,
@@ -68,7 +75,7 @@ export default function CheckoutForm({ orderTotal }) {
         err.message ||
         err.response?.data?.error ||
         err.response?.data?.message ||
-        'Failed to start checkout. Please try again.';
+        t('checkout.startFailed');
       setServerError(message);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setIsSubmitting(false);
@@ -79,7 +86,7 @@ export default function CheckoutForm({ orderTotal }) {
     <form
       onSubmit={handleSubmit(onSubmit)}
       noValidate
-      aria-label="Checkout form"
+      aria-label={t('checkout.title')}
       className="flex flex-col gap-8"
     >
       {serverError && (
@@ -108,41 +115,41 @@ export default function CheckoutForm({ orderTotal }) {
 
       {/* ── Section 1: Contact Info ── */}
       <section aria-labelledby="section-contact">
-        <SectionHeading number="1" title="Contact Info" />
+        <SectionHeading number="1" title={t('checkout.contactInfo')} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormInput
-            label="First name"
+            label={t('checkout.firstName')}
             id="checkout-firstName"
             type="text"
-            placeholder="John"
+            placeholder={t('checkout.firstNamePlaceholder')}
             autoComplete="given-name"
             error={errors.firstName?.message}
             {...register('firstName')}
           />
           <FormInput
-            label="Last name"
+            label={t('checkout.lastName')}
             id="checkout-lastName"
             type="text"
-            placeholder="Doe"
+            placeholder={t('checkout.lastNamePlaceholder')}
             autoComplete="family-name"
             error={errors.lastName?.message}
             {...register('lastName')}
           />
           <FormInput
-            label="Email address"
+            label={t('checkout.emailAddress')}
             id="checkout-email"
             type="email"
-            placeholder="you@example.com"
+            placeholder={t('checkout.emailPlaceholder')}
             autoComplete="email"
             error={errors.email?.message}
             className="sm:col-span-2"
             {...register('email')}
           />
           <FormInput
-            label="Phone (optional)"
+            label={t('checkout.phoneOptional')}
             id="checkout-phone"
             type="tel"
-            placeholder="+972 50 123 4567"
+            placeholder={t('checkout.phonePlaceholder')}
             autoComplete="tel"
             error={errors.phone?.message}
             className="sm:col-span-2"
@@ -153,40 +160,40 @@ export default function CheckoutForm({ orderTotal }) {
 
       {/* ── Section 2: Shipping Address ── */}
       <section aria-labelledby="section-shipping">
-        <SectionHeading number="2" title="Shipping Address" />
+        <SectionHeading number="2" title={t('checkout.shippingAddress')} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormInput
-            label="Street address"
+            label={t('checkout.streetAddress')}
             id="checkout-address"
             type="text"
-            placeholder="HaSolelim"
+            placeholder={t('checkout.streetPlaceholder')}
             autoComplete="street-address"
             error={errors.address?.message}
             className="sm:col-span-2"
             {...register('address')}
           />
           <FormInput
-            label="City"
+            label={t('checkout.city')}
             id="checkout-city"
             type="text"
-            placeholder="Tel Aviv"
+            placeholder={t('checkout.cityPlaceholder')}
             autoComplete="address-level2"
             error={errors.city?.message}
             {...register('city')}
           />
           <FormInput
-            label="ZIP / Postal code"
+            label={t('checkout.zip')}
             id="checkout-zip"
             type="text"
-            placeholder="10001"
+            placeholder={t('checkout.zipPlaceholder')}
             autoComplete="postal-code"
             error={errors.zip?.message}
             {...register('zip')}
           />
           <FormSelect
-            label="Country"
+            label={t('checkout.country')}
             id="checkout-country"
-            options={COUNTRIES}
+            options={countries}
             error={errors.country?.message}
             className="sm:col-span-2"
             autoComplete="country"
@@ -195,14 +202,14 @@ export default function CheckoutForm({ orderTotal }) {
         </div>
       </section>
 
-      {/* ── Section 3: Payment (Rapyd Hosted Checkout) ── */}
+      {/* ── Section 3: Payment (Airwallex Hosted Checkout) ── */}
       <section aria-labelledby="section-payment">
-        <SectionHeading number="3" title="Payment" />
+        <SectionHeading number="3" title={t('checkout.payment')} />
 
         <div
           className="flex items-start gap-3 p-4 rounded-lg border border-[#E8C547] bg-[#E8C547]/10 mb-4"
           role="status"
-          aria-label="Payment method: Credit Card via Rapyd"
+          aria-label={t('checkout.paymentMethodAria', { provider: PAYMENT_PROVIDER })}
         >
           <svg
             className="w-5 h-5 text-[#E8C547] flex-shrink-0 mt-0.5"
@@ -220,11 +227,10 @@ export default function CheckoutForm({ orderTotal }) {
           </svg>
           <div className="flex flex-col gap-1">
             <span className="text-[#E8C547] text-sm font-semibold">
-              Credit Card
+              {t('checkout.creditCard')}
             </span>
             <span className="text-xs text-[#A8B2C1]">
-              You will be redirected to Rapyd's secure payment page to complete
-              your purchase. Visa &bull; Mastercard &bull; Amex &bull; Discover
+              {t('checkout.redirectNotice', { provider: PAYMENT_PROVIDER })}
             </span>
           </div>
         </div>
@@ -243,9 +249,8 @@ export default function CheckoutForm({ orderTotal }) {
               clipRule="evenodd"
             />
           </svg>
-          Secured by{' '}
-          <span className="font-semibold text-white">Rapyd</span>
-          <span className="text-[#A8B2C1]">&mdash; PCI DSS Level 1</span>
+          {t('checkout.securedBy')}{' '}
+          <span className="font-semibold text-white">{PAYMENT_PROVIDER}</span>
         </div>
       </section>
 
@@ -278,7 +283,7 @@ export default function CheckoutForm({ orderTotal }) {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
               />
             </svg>
-            Redirecting...
+            {t('checkout.redirecting')}
           </>
         ) : (
           <>
@@ -297,8 +302,8 @@ export default function CheckoutForm({ orderTotal }) {
               />
             </svg>
             {orderTotal != null
-              ? `Continue to Payment — $${orderTotal.toFixed(2)}`
-              : 'Continue to Payment'}
+              ? t('checkout.continueToPaymentAmount', { amount: `$${orderTotal.toFixed(2)}` })
+              : t('checkout.continueToPayment')}
           </>
         )}
       </button>

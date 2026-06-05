@@ -3,13 +3,14 @@
  * Uses React Hook Form + Zod for validation.
  * On success, stores JWT token and updates AuthContext.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
-import { loginSchema } from '../../utils/validation';
+import { makeLoginSchema } from '../../utils/validation';
 import { FormInput } from './FormField';
 import { useAuth } from '../../hooks/useAuth';
+import { useTranslation } from '../../context/LanguageContext';
 
 /**
  * @param {object} props
@@ -19,8 +20,11 @@ import { useAuth } from '../../hooks/useAuth';
 export default function LoginForm({ onSuccess, onSwitchToRegister }) {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { t } = useTranslation();
   const [serverError, setServerError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  const loginSchema = useMemo(() => makeLoginSchema(t), [t]);
 
   const {
     register,
@@ -42,7 +46,7 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }) {
         navigate('/');
       }
     } catch (err) {
-      setServerError(err?.message || 'Login failed. Please check your credentials.');
+      setServerError(err?.message || t('auth.loginFailed'));
     }
   };
 
@@ -50,7 +54,7 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }) {
     <form
       onSubmit={handleSubmit(onSubmit)}
       noValidate
-      aria-label="Login form"
+      aria-label={t('auth.signIn')}
       className="flex flex-col gap-5"
     >
       {/* Server-level error */}
@@ -77,10 +81,10 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }) {
 
       {/* Email */}
       <FormInput
-        label="Email address"
+        label={t('auth.emailLabel')}
         id="login-email"
         type="email"
-        placeholder="you@example.com"
+        placeholder={t('auth.emailPlaceholder')}
         autoComplete="email"
         error={errors.email?.message}
         {...register('email')}
@@ -89,13 +93,13 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }) {
       {/* Password */}
       <div className="flex flex-col gap-1">
         <label htmlFor="login-password" className="text-sm font-medium text-white">
-          Password
+          {t('auth.passwordLabel')}
         </label>
         <div className="relative">
           <input
             id="login-password"
             type={showPassword ? 'text' : 'password'}
-            placeholder="••••••••"
+            placeholder={t('auth.passwordPlaceholder')}
             autoComplete="current-password"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? 'login-password-error' : undefined}
@@ -110,7 +114,7 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }) {
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A8B2C1] hover:text-white transition-colors"
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
           >
             {showPassword ? (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,23 +150,23 @@ export default function LoginForm({ onSuccess, onSwitchToRegister }) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Signing in...
+            {t('auth.signingIn')}
           </>
         ) : (
-          'Login'
+          t('auth.loginButton')
         )}
       </button>
 
       {/* Switch to register */}
       {onSwitchToRegister && (
         <p className="text-center text-sm text-[#A8B2C1]">
-          New here?{' '}
+          {t('auth.newHere')}{' '}
           <button
             type="button"
             onClick={onSwitchToRegister}
             className="text-[#E8C547] hover:underline font-medium"
           >
-            Create Account
+            {t('auth.createAccount')}
           </button>
         </p>
       )}

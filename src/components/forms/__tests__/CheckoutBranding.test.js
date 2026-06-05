@@ -2,7 +2,7 @@
  * CheckoutBranding tests — guards against regressions in payment branding.
  *
  *   - No Stripe references (text, aria-labels, test-ids)
- *   - Rapyd security badge present
+ *   - Airwallex security badge present
  *   - No client-side card collection (Hosted Checkout owns that)
  */
 import React from 'react';
@@ -45,31 +45,26 @@ describe('Checkout branding & payment surface', () => {
     });
   });
 
-  describe('Rapyd branding must be present', () => {
-    it('renders "Secured by Rapyd"', () => {
+  describe('Airwallex branding must be present', () => {
+    it('renders "Secured by Airwallex"', () => {
       renderCheckoutForm();
       expect(screen.getByText(/secured by/i)).toBeInTheDocument();
-      expect(screen.getByText('Rapyd')).toBeInTheDocument();
+      expect(screen.getByText('Airwallex')).toBeInTheDocument();
     });
 
-    it('renders "PCI DSS Level 1" compliance label', () => {
-      renderCheckoutForm();
-      expect(screen.getByText(/PCI DSS Level 1/i)).toBeInTheDocument();
-    });
-
-    it('payment indicator aria-label says "via Rapyd"', () => {
+    it('payment indicator aria-label says "via Airwallex"', () => {
       renderCheckoutForm();
       const indicator = screen.getByRole('status', {
-        name: /credit card via rapyd/i,
+        name: /credit card via airwallex/i,
       });
       const label = indicator.getAttribute('aria-label').toLowerCase();
-      expect(label).toContain('rapyd');
+      expect(label).toContain('airwallex');
       expect(label).not.toContain('stripe');
     });
 
-    it('explains the redirect to Rapyd', () => {
+    it('explains the redirect to Airwallex', () => {
       renderCheckoutForm();
-      expect(screen.getByText(/redirected to rapyd/i)).toBeInTheDocument();
+      expect(screen.getByText(/redirected to airwallex/i)).toBeInTheDocument();
     });
   });
 
@@ -94,7 +89,7 @@ describe('Checkout branding & payment surface', () => {
 
     it('does not render any embedded card element', () => {
       renderCheckoutForm();
-      expect(screen.queryByTestId('rapyd-card-element')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('airwallex-card-element')).not.toBeInTheDocument();
       expect(screen.queryByTestId('stripe-card-element')).not.toBeInTheDocument();
     });
   });

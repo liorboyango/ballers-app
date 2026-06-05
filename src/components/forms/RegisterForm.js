@@ -3,13 +3,14 @@
  * Uses React Hook Form + Zod for validation.
  * On success, stores JWT token and updates AuthContext.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
-import { registerSchema } from '../../utils/validation';
+import { makeRegisterSchema } from '../../utils/validation';
 import { FormInput } from './FormField';
 import { useAuth } from '../../hooks/useAuth';
+import { useTranslation } from '../../context/LanguageContext';
 
 /**
  * @param {object} props
@@ -19,9 +20,12 @@ import { useAuth } from '../../hooks/useAuth';
 export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
   const navigate = useNavigate();
   const { register: registerUser } = useAuth();
+  const { t } = useTranslation();
   const [serverError, setServerError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  const registerSchema = useMemo(() => makeRegisterSchema(t), [t]);
 
   const {
     register,
@@ -49,7 +53,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
       if (Array.isArray(err?.errors) && err.errors.length) {
         setServerError(err.errors.map((e) => e.message).join('. '));
       } else {
-        setServerError(err?.message || 'Registration failed. Please try again.');
+        setServerError(err?.message || t('auth.registrationFailed'));
       }
     }
   };
@@ -62,10 +66,10 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
     if (/[A-Z]/.test(pw)) score++;
     if (/[0-9]/.test(pw)) score++;
     if (/[^A-Za-z0-9]/.test(pw)) score++;
-    if (score <= 1) return { level: 1, label: 'Weak', color: 'bg-red-500' };
-    if (score === 2) return { level: 2, label: 'Fair', color: 'bg-yellow-500' };
-    if (score === 3) return { level: 3, label: 'Good', color: 'bg-blue-500' };
-    return { level: 4, label: 'Strong', color: 'bg-green-500' };
+    if (score <= 1) return { level: 1, label: t('auth.strengthWeak'), color: 'bg-red-500' };
+    if (score === 2) return { level: 2, label: t('auth.strengthFair'), color: 'bg-yellow-500' };
+    if (score === 3) return { level: 3, label: t('auth.strengthGood'), color: 'bg-blue-500' };
+    return { level: 4, label: t('auth.strengthStrong'), color: 'bg-green-500' };
   };
 
   const strength = getPasswordStrength(passwordValue);
@@ -74,7 +78,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
     <form
       onSubmit={handleSubmit(onSubmit)}
       noValidate
-      aria-label="Registration form"
+      aria-label={t('auth.createAccount')}
       className="flex flex-col gap-5"
     >
       {/* Server-level error */}
@@ -101,10 +105,10 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
 
       {/* Full Name */}
       <FormInput
-        label="Full name"
+        label={t('auth.fullNameLabel')}
         id="register-name"
         type="text"
-        placeholder="John Doe"
+        placeholder={t('auth.fullNamePlaceholder')}
         autoComplete="name"
         error={errors.name?.message}
         {...register('name')}
@@ -112,10 +116,10 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
 
       {/* Email */}
       <FormInput
-        label="Email address"
+        label={t('auth.emailLabel')}
         id="register-email"
         type="email"
-        placeholder="you@example.com"
+        placeholder={t('auth.emailPlaceholder')}
         autoComplete="email"
         error={errors.email?.message}
         {...register('email')}
@@ -124,13 +128,13 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
       {/* Password */}
       <div className="flex flex-col gap-1">
         <label htmlFor="register-password" className="text-sm font-medium text-white">
-          Password
+          {t('auth.passwordLabel')}
         </label>
         <div className="relative">
           <input
             id="register-password"
             type={showPassword ? 'text' : 'password'}
-            placeholder="Min. 6 characters"
+            placeholder={t('auth.registerPasswordPlaceholder')}
             autoComplete="new-password"
             aria-invalid={!!errors.password}
             aria-describedby="register-password-strength register-password-error"
@@ -145,7 +149,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A8B2C1] hover:text-white transition-colors"
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
           >
             {showPassword ? (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -190,13 +194,13 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
       {/* Confirm Password */}
       <div className="flex flex-col gap-1">
         <label htmlFor="register-confirm" className="text-sm font-medium text-white">
-          Confirm password
+          {t('auth.confirmPasswordLabel')}
         </label>
         <div className="relative">
           <input
             id="register-confirm"
             type={showConfirm ? 'text' : 'password'}
-            placeholder="Re-enter your password"
+            placeholder={t('auth.confirmPasswordPlaceholder')}
             autoComplete="new-password"
             aria-invalid={!!errors.confirmPassword}
             aria-describedby={errors.confirmPassword ? 'register-confirm-error' : undefined}
@@ -211,7 +215,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
             type="button"
             onClick={() => setShowConfirm((v) => !v)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A8B2C1] hover:text-white transition-colors"
-            aria-label={showConfirm ? 'Hide confirm password' : 'Show confirm password'}
+            aria-label={showConfirm ? t('auth.hideConfirmPassword') : t('auth.showConfirmPassword')}
           >
             {showConfirm ? (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -247,23 +251,23 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Creating account...
+            {t('auth.creatingAccount')}
           </>
         ) : (
-          'Create Account'
+          t('auth.createAccount')
         )}
       </button>
 
       {/* Switch to login */}
       {onSwitchToLogin && (
         <p className="text-center text-sm text-[#A8B2C1]">
-          Already have an account?{' '}
+          {t('auth.alreadyHaveAccount')}{' '}
           <button
             type="button"
             onClick={onSwitchToLogin}
             className="text-[#E8C547] hover:underline font-medium"
           >
-            Sign in
+            {t('auth.signIn')}
           </button>
         </p>
       )}

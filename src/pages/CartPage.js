@@ -5,11 +5,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useTranslation } from '../context/LanguageContext';
 
 function Stepper({ step }) {
+  const { t } = useTranslation();
   const steps = [
-    { n: 1, label: 'Shipping' },
-    { n: 2, label: 'Payment' },
+    { n: 1, label: t('cart.stepShipping') },
+    { n: 2, label: t('cart.stepPayment') },
   ];
   return (
     <div className="flex items-center gap-3 mb-5">
@@ -42,6 +44,7 @@ function Stepper({ step }) {
 
 function CartItemRow({ item }) {
   const cart = useCart();
+  const { t } = useTranslation();
   const updateQuantity = cart.updateQuantity || cart.updateItem || (() => {});
   const removeItem = cart.removeFromCart || cart.removeItem || (() => {});
   const key = item.cartKey || item._id;
@@ -60,15 +63,15 @@ function CartItemRow({ item }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="font-semibold text-ink text-sm truncate">{item.name || 'Brazil Home 2024 Authentic Jersey'}</h3>
+            <h3 className="font-semibold text-ink text-sm truncate">{item.name || t('cart.productFallback')}</h3>
             <p className="text-xs text-ink-muted mt-0.5">
-              Size: {item.size || 'L'} · Color: {item.color || 'Yellow'}
+              {t('cart.itemAttributes', { size: item.size || 'L', color: item.color || 'Yellow' })}
             </p>
           </div>
           <button
             onClick={() => removeItem(key)}
             className="text-ink-faint hover:text-accent-danger transition-colors"
-            aria-label={`Remove ${item.name}`}
+            aria-label={t('cart.removeAria', { name: item.name || t('cart.productFallback') })}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -81,7 +84,7 @@ function CartItemRow({ item }) {
             <button
               onClick={() => updateQuantity(key, Math.max(1, (item.quantity || 1) - 1))}
               className="px-2.5 py-1 text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
-              aria-label="Decrease quantity"
+              aria-label={t('cart.decreaseQty')}
             >
               −
             </button>
@@ -91,7 +94,7 @@ function CartItemRow({ item }) {
             <button
               onClick={() => updateQuantity(key, (item.quantity || 1) + 1)}
               className="px-2.5 py-1 text-ink-soft hover:text-ink hover:bg-surface-muted transition-colors"
-              aria-label="Increase quantity"
+              aria-label={t('cart.increaseQty')}
             >
               +
             </button>
@@ -106,6 +109,7 @@ function CartItemRow({ item }) {
 
 function CartPage() {
   const cart = useCart();
+  const { t } = useTranslation();
   const items = cart.items || [];
   const itemCount = cart.itemCount ?? cart.totalItems ?? items.length;
   const subtotal = cart.subtotal ?? cart.totalPrice ?? items.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
@@ -126,10 +130,10 @@ function CartPage() {
       <div className="page-enter min-h-[60vh] flex items-center justify-center">
         <div className="text-center px-4">
           <div className="text-6xl mb-5" aria-hidden="true">🛒</div>
-          <h1 className="text-display text-3xl text-ink mb-3">Your Cart is Empty</h1>
-          <p className="text-ink-muted mb-6">Add a kit to get started.</p>
+          <h1 className="text-display text-3xl text-ink mb-3">{t('cart.emptyTitle')}</h1>
+          <p className="text-ink-muted mb-6">{t('cart.emptySubtitle')}</p>
           <Link to="/teams" className="btn-primary px-6 py-3">
-            Shop Kits
+            {t('cart.shopKits')}
           </Link>
         </div>
       </div>
@@ -140,14 +144,14 @@ function CartPage() {
     <div className="page-enter min-h-screen">
       <div className="container-ballers py-8">
         <div className="mb-6">
-          <h1 className="text-display text-3xl text-ink">Your Cart</h1>
-          <p className="text-sm text-ink-muted mt-1">Review your items before checkout.</p>
+          <h1 className="text-display text-3xl text-ink">{t('cart.title')}</h1>
+          <p className="text-sm text-ink-muted mt-1">{t('cart.subtitle')}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Items */}
           <div className="lg:col-span-2 card p-5">
-            <div role="list" aria-label="Cart items">
+            <div role="list" aria-label={t('cart.itemsAria')}>
               {items.map((item) => (
                 <div key={item.cartKey || item._id} role="listitem">
                   <CartItemRow item={item} />
@@ -158,7 +162,7 @@ function CartPage() {
               to="/products"
               className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-brand mt-4"
             >
-              ← Continue Shopping
+              <span aria-hidden="true">←</span> {t('cart.continueShopping')}
             </Link>
           </div>
 
@@ -166,72 +170,68 @@ function CartPage() {
           <div className="card p-5 lg:p-6 self-start">
             <Stepper step={1} />
 
-            <h2 className="text-base font-bold text-ink mt-1">Shipping Details</h2>
+            <h2 className="text-base font-bold text-ink mt-1">{t('cart.shippingDetails')}</h2>
 
             <div className="space-y-3 mt-3">
               <div>
-                <label className="text-xs text-ink-muted">Email Address</label>
+                <label className="text-xs text-ink-muted">{t('cart.email')}</label>
                 <input
                   type="email"
                   value={shipping.email}
                   onChange={onChange('email')}
-                  placeholder="fan@ballers.com"
+                  placeholder={t('cart.emailPlaceholder')}
                   className="input-field mt-1 text-sm"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-ink-muted">First Name</label>
+                  <label className="text-xs text-ink-muted">{t('cart.firstName')}</label>
                   <input
                     type="text"
                     value={shipping.firstName}
                     onChange={onChange('firstName')}
-                    placeholder="Lionel"
+                    placeholder={t('cart.firstNamePlaceholder')}
                     className="input-field mt-1 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-ink-muted">Last Name</label>
+                  <label className="text-xs text-ink-muted">{t('cart.lastName')}</label>
                   <input
                     type="text"
                     value={shipping.lastName}
                     onChange={onChange('lastName')}
-                    placeholder="Messi"
+                    placeholder={t('cart.lastNamePlaceholder')}
                     className="input-field mt-1 text-sm"
                   />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-ink-muted">Street Address</label>
+                <label className="text-xs text-ink-muted">{t('cart.streetAddress')}</label>
                 <input
                   type="text"
                   value={shipping.address}
                   onChange={onChange('address')}
-                  placeholder="10 Stadium Way"
+                  placeholder={t('cart.streetPlaceholder')}
                   className="input-field mt-1 text-sm"
                 />
               </div>
             </div>
 
             <div className="border-t border-line mt-5 pt-4">
-              <h3 className="text-sm font-bold text-ink mb-3">Order Summary</h3>
+              <h3 className="text-sm font-bold text-ink mb-3">{t('cart.orderSummary')}</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-ink-soft">
-                  <span>Subtotal ({itemCount} items)</span>
+                  <span>{t('cart.subtotalItems', { count: itemCount })}</span>
                   <span className="text-ink">${subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-ink-soft">
-                  <span>Estimated Shipping</span>
-                  <span className="text-accent-success font-medium">Free</span>
-                </div>
-                <div className="flex justify-between text-ink-soft">
-                  <span>Tax</span>
-                  <span className="text-ink-muted">Calculated next step</span>
+                  <span>{t('cart.estShipping')}</span>
+                  <span className="text-accent-success font-medium">{t('cart.free')}</span>
                 </div>
               </div>
 
               <div className="flex justify-between items-baseline mt-4 pt-3 border-t border-line">
-                <span className="text-sm font-bold text-ink">Total</span>
+                <span className="text-sm font-bold text-ink">{t('cart.total')}</span>
                 <span className="text-xl font-bold text-ink">${total.toFixed(2)}</span>
               </div>
             </div>
@@ -240,10 +240,10 @@ function CartPage() {
               to="/checkout"
               className="btn-primary w-full mt-5 py-3.5 text-base"
             >
-              Continue to Payment →
+              {t('cart.continueToPayment')} <span aria-hidden="true">→</span>
             </Link>
             <p className="text-center text-xs text-ink-muted mt-2">
-              <span aria-hidden="true">🔒</span> Secure Checkout
+              <span aria-hidden="true">🔒</span> {t('cart.secureCheckout')}
             </p>
           </div>
         </div>

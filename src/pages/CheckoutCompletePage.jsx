@@ -1,8 +1,8 @@
 /**
- * CheckoutCompletePage — handles the redirect back from Rapyd Hosted Checkout.
+ * CheckoutCompletePage — handles the redirect back from Airwallex Hosted Checkout.
  *
- * Rapyd appends `checkoutId` to the configured complete_checkout_url. We call
- * the backend's finalize endpoint, which verifies the payment with Rapyd and
+ * Airwallex appends `checkoutId` to the configured return URL. We call
+ * the backend's finalize endpoint, which verifies the payment with Airwallex and
  * returns the persisted order. On success we clear the cart and redirect to
  * /order-success with the order in navigation state. On failure we show an
  * error with a retry path back to /checkout.
@@ -11,11 +11,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { finalizeCheckout } from '../services/ordersApi';
 import { useCart } from '../hooks/useCart';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function CheckoutCompletePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { clearCart } = useCart();
+  const { t } = useTranslation();
   const [error, setError] = useState('');
   const ranRef = useRef(false);
 
@@ -27,7 +29,7 @@ export default function CheckoutCompletePage() {
     ranRef.current = true;
 
     if (!checkoutId) {
-      setError('Missing checkout reference. If you completed payment, please contact support.');
+      setError(t('checkout.missingReference'));
       return;
     }
 
@@ -48,13 +50,13 @@ export default function CheckoutCompletePage() {
           err.message ||
           err.response?.data?.error ||
           err.response?.data?.message ||
-          'We could not confirm your payment. If you were charged, please contact support.';
+          t('checkout.confirmFailed');
         setError(message);
       }
     })();
 
     return () => { cancelled = true; };
-  }, [checkoutId, clearCart, navigate]);
+  }, [checkoutId, clearCart, navigate, t]);
 
   if (error) {
     return (
@@ -67,12 +69,12 @@ export default function CheckoutCompletePage() {
             className="text-3xl font-black text-white uppercase tracking-wider mb-3"
             style={{ fontFamily: "'Bebas Neue', sans-serif" }}
           >
-            Payment Not Confirmed
+            {t('checkout.notConfirmedTitle')}
           </h1>
           <p role="alert" className="text-red-300 text-sm mb-2">{error}</p>
           {checkoutId && (
             <p className="text-xs text-[#A8B2C1] mb-6">
-              Reference: <span className="font-mono text-white">{checkoutId}</span>
+              {t('checkout.reference')} <span className="font-mono text-white">{checkoutId}</span>
             </p>
           )}
           <div className="flex flex-col gap-3">
@@ -80,10 +82,10 @@ export default function CheckoutCompletePage() {
               to="/checkout"
               className="w-full py-3 px-6 bg-[#E8C547] text-[#1A1A2E] font-bold uppercase tracking-wider rounded-lg hover:bg-[#D4A800] transition-colors"
             >
-              Try Again
+              {t('checkout.tryAgain')}
             </Link>
             <Link to="/cart" className="text-[#A8B2C1] hover:text-white text-sm">
-              Back to Cart
+              {t('checkout.backToCart')}
             </Link>
           </div>
         </div>
@@ -121,8 +123,8 @@ export default function CheckoutCompletePage() {
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
           />
         </svg>
-        <p className="text-white text-base font-medium">Confirming your payment…</p>
-        <p className="text-[#A8B2C1] text-sm">Please don't close this window.</p>
+        <p className="text-white text-base font-medium">{t('checkout.confirming')}</p>
+        <p className="text-[#A8B2C1] text-sm">{t('checkout.dontClose')}</p>
       </div>
     </div>
   );

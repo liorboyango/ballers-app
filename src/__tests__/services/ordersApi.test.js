@@ -1,5 +1,5 @@
 /**
- * Tests for the Orders API service — Rapyd Hosted Checkout.
+ * Tests for the Orders API service — Airwallex Hosted Checkout.
  *
  * Covers:
  *   - createCheckoutSession: request payload (shippingAddress)
@@ -50,7 +50,7 @@ describe('createCheckoutSession', () => {
 
   it('POSTs to /orders/create-checkout-session with shippingAddress', async () => {
     apiClient.post.mockResolvedValueOnce(
-      envelope({ checkoutId: 'ck_123', redirectUrl: 'https://sandboxcheckout.rapyd.net/?token=ck_123' })
+      envelope({ checkoutId: 'ck_123', redirectUrl: 'https://checkout.airwallex.com/?token=ck_123' })
     );
 
     await createCheckoutSession({ shippingAddress: SHIPPING });
@@ -75,22 +75,22 @@ describe('createCheckoutSession', () => {
 
   it('returns { checkoutId, redirectUrl } from camelCase payload', async () => {
     apiClient.post.mockResolvedValueOnce(
-      envelope({ checkoutId: 'ck_abc', redirectUrl: 'https://pay.rapyd.net/abc' })
+      envelope({ checkoutId: 'ck_abc', redirectUrl: 'https://pay.airwallex.com/abc' })
     );
 
     const result = await createCheckoutSession({ shippingAddress: SHIPPING });
 
-    expect(result).toEqual({ checkoutId: 'ck_abc', redirectUrl: 'https://pay.rapyd.net/abc' });
+    expect(result).toEqual({ checkoutId: 'ck_abc', redirectUrl: 'https://pay.airwallex.com/abc' });
   });
 
   it('normalises snake_case payload', async () => {
     apiClient.post.mockResolvedValueOnce(
-      envelope({ checkout_id: 'ck_snake', redirect_url: 'https://pay.rapyd.net/snake' })
+      envelope({ checkout_id: 'ck_snake', redirect_url: 'https://pay.airwallex.com/snake' })
     );
 
     const result = await createCheckoutSession({ shippingAddress: SHIPPING });
 
-    expect(result).toEqual({ checkoutId: 'ck_snake', redirectUrl: 'https://pay.rapyd.net/snake' });
+    expect(result).toEqual({ checkoutId: 'ck_snake', redirectUrl: 'https://pay.airwallex.com/snake' });
   });
 
   it('throws when redirectUrl is missing', async () => {
@@ -133,12 +133,12 @@ describe('finalizeCheckout', () => {
 
   it('returns the order from the envelope', async () => {
     apiClient.post.mockResolvedValueOnce(
-      envelope({ id: 'order-1', status: 'paid', rapydPaymentId: 'pay_1' })
+      envelope({ id: 'order-1', status: 'paid', airwallexPaymentId: 'pay_1' })
     );
 
     const order = await finalizeCheckout({ checkoutId: 'ck_xyz' });
 
-    expect(order).toEqual({ id: 'order-1', status: 'paid', rapydPaymentId: 'pay_1' });
+    expect(order).toEqual({ id: 'order-1', status: 'paid', airwallexPaymentId: 'pay_1' });
   });
 
   it('unwraps a nested { order } shape', async () => {

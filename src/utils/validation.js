@@ -3,8 +3,8 @@
  * Used with React Hook Form's zodResolver.
  *
  * Note: Card field validation has been removed from checkoutSchema.
- * Rapyd's RapydCardElement handles all card validation client-side in a
- * PCI-compliant manner via a hosted iframe. The checkout form only
+ * Airwallex's hosted checkout handles all card validation in a
+ * PCI-compliant manner on its own payment page. The checkout form only
  * validates contact/shipping fields.
  */
 import { z } from 'zod';
@@ -12,88 +12,107 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 // Auth schemas
 // ---------------------------------------------------------------------------
+// Factory functions take the translation function `t` so validation messages
+// follow the active language. Static exports below use an identity fallback
+// (returns the key) and are kept for any non-localized callers/tests.
 
-export const loginSchema = z.object({
-  email: z
-    .string()
-    .min(1, 'Email is required')
-    .email('Please enter a valid email address'),
-  password: z
-    .string()
-    .min(1, 'Password is required')
-    .min(6, 'Password must be at least 6 characters'),
-});
+const identity = (key) => key;
 
-export const registerSchema = z
-  .object({
-    name: z
-      .string()
-      .min(1, 'Full name is required')
-      .min(2, 'Name must be at least 2 characters')
-      .max(50, 'Name must be less than 50 characters'),
+export const makeLoginSchema = (t = identity) =>
+  z.object({
     email: z
       .string()
-      .min(1, 'Email is required')
-      .email('Please enter a valid email address'),
+      .min(1, t('auth.validationEmailRequired'))
+      .email(t('auth.validationEmail')),
     password: z
       .string()
-      .min(1, 'Password is required')
-      .min(6, 'Password must be at least 6 characters')
-      .max(100, 'Password must be less than 100 characters'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
+      .min(1, t('auth.validationPasswordRequired'))
+      .min(6, t('auth.validationPasswordMin')),
   });
+
+export const makeRegisterSchema = (t = identity) =>
+  z
+    .object({
+      name: z
+        .string()
+        .min(1, t('auth.validationNameRequired'))
+        .min(2, t('auth.validationNameMin'))
+        .max(50, t('auth.validationNameMax')),
+      email: z
+        .string()
+        .min(1, t('auth.validationEmailRequired'))
+        .email(t('auth.validationEmail')),
+      password: z
+        .string()
+        .min(1, t('auth.validationPasswordRequired'))
+        .min(6, t('auth.validationPasswordMin'))
+        .max(100, t('auth.validationPasswordMax')),
+      confirmPassword: z.string().min(1, t('auth.validationConfirmRequired')),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: t('auth.validationPasswordsMatch'),
+      path: ['confirmPassword'],
+    });
+
+export const loginSchema = makeLoginSchema();
+
+export const registerSchema = makeRegisterSchema();
 
 // ---------------------------------------------------------------------------
 // Checkout schema
 // ---------------------------------------------------------------------------
-// Card fields are intentionally excluded — Rapyd's RapydCardElement handles
-// card number, expiry, and CVV validation in a PCI-compliant hosted iframe.
-// The checkout schema only covers contact and shipping fields.
+// Card fields are intentionally excluded — Airwallex's hosted checkout handles
+// card number, expiry, and CVV validation in a PCI-compliant manner on its own
+// payment page. The checkout schema only covers contact and shipping fields.
 
-export const checkoutSchema = z.object({
-  // Contact
-  firstName: z
-    .string()
-    .min(1, 'First name is required')
-    .max(50, 'First name is too long'),
-  lastName: z
-    .string()
-    .min(1, 'Last name is required')
-    .max(50, 'Last name is too long'),
-  email: z
-    .string()
-    .min(1, 'Email is required')
-    .email('Please enter a valid email address'),
-  phone: z
-    .string()
-    .optional()
-    .refine(
-      (val) => !val || /^[+]?[\d\s\-()]{7,20}$/.test(val),
-      'Please enter a valid phone number'
-    ),
-  // Shipping
-  address: z
-    .string()
-    .min(1, 'Address is required')
-    .max(200, 'Address is too long'),
-  city: z
-    .string()
-    .min(1, 'City is required')
-    .max(100, 'City is too long'),
-  zip: z
-    .string()
-    .min(1, 'ZIP / Postal code is required')
-    .max(20, 'ZIP code is too long'),
-  country: z
-    .string()
-    .min(1, 'Country is required'),
-});
+export const makeCheckoutSchema = (t = identity) =>
+  z.object({
+    // Contact
+    firstName: z
+      .string()
+      .min(1, t('checkout.valFirstNameRequired'))
+      .max(50, t('checkout.valFirstNameMax')),
+    lastName: z
+      .string()
+      .min(1, t('checkout.valLastNameRequired'))
+      .max(50, t('checkout.valLastNameMax')),
+    email: z
+      .string()
+      .min(1, t('checkout.valEmailRequired'))
+      .email(t('checkout.valEmailInvalid')),
+    phone: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || /^[+]?[\d\s\-()]{7,20}$/.test(val),
+        t('checkout.valPhoneInvalid')
+      ),
+    // Shipping
+    address: z
+      .string()
+      .min(1, t('checkout.valAddressRequired'))
+      .max(200, t('checkout.valAddressMax')),
+    city: z
+      .string()
+      .min(1, t('checkout.valCityRequired'))
+      .max(100, t('checkout.valCityMax')),
+    zip: z
+      .string()
+      .min(1, t('checkout.valZipRequired'))
+      .max(20, t('checkout.valZipMax')),
+    country: z.string().min(1, t('checkout.valCountryRequired')),
+  });
 
-// Country list for the checkout form select input
+export const checkoutSchema = makeCheckoutSchema();
+
+// Country options for the checkout form select input. The placeholder and
+// country labels are localized via `t`; values stay stable (ISO codes).
+export const getCountries = (t = identity) => [
+  { value: '', label: t('checkout.selectCountry') },
+  { value: 'IL', label: t('checkout.countryIsrael') },
+];
+
+// Static country list kept for non-localized callers/tests.
 export const COUNTRIES = [
   { value: '', label: 'Select country...' },
   { value: 'IL', label: 'Israel' },

@@ -100,7 +100,7 @@ describe('CheckoutPage', () => {
 
   it('does not wrap the form in any payment-provider context (Hosted Checkout uses redirect)', () => {
     renderCheckoutPage();
-    expect(screen.queryByTestId('rapyd-provider')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('airwallex-provider')).not.toBeInTheDocument();
     expect(screen.queryByTestId('stripe-provider')).not.toBeInTheDocument();
   });
 });

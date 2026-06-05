@@ -1,5 +1,5 @@
 /**
- * CheckoutCompletePage tests — handles return from Rapyd Hosted Checkout.
+ * CheckoutCompletePage tests — handles return from Airwallex Hosted Checkout.
  */
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';

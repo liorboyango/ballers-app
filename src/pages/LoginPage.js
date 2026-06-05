@@ -8,11 +8,13 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import LoginForm from '../components/forms/LoginForm';
 import RegisterForm from '../components/forms/RegisterForm';
 import { useAuth } from '../hooks/useAuth';
+import { useTranslation } from '../context/LanguageContext';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   // Allow deep-linking to register tab via ?tab=register
   const params = new URLSearchParams(location.search);
@@ -55,7 +57,7 @@ export default function LoginPage() {
             </span>
           </Link>
           <p className="text-[#A8B2C1] text-sm mt-2 tracking-wide uppercase">
-            Wear the Game
+            {t('brand.tagline')}
           </p>
         </div>
 
@@ -65,7 +67,7 @@ export default function LoginPage() {
           <div
             className="flex rounded-lg overflow-hidden border border-[#2A3550] mb-8"
             role="tablist"
-            aria-label="Authentication options"
+            aria-label={t('auth.signIn')}
           >
             <button
               role="tab"
@@ -79,7 +81,7 @@ export default function LoginPage() {
                   : 'text-[#A8B2C1] hover:text-white'
               }`}
             >
-              Sign In
+              {t('auth.signIn')}
             </button>
             <button
               role="tab"
@@ -93,7 +95,7 @@ export default function LoginPage() {
                   : 'text-[#A8B2C1] hover:text-white'
               }`}
             >
-              Create Account
+              {t('auth.createAccount')}
             </button>
           </div>
 
@@ -107,7 +109,7 @@ export default function LoginPage() {
             {activeTab === 'login' && (
               <>
                 <h1 className="text-2xl font-bold text-white mb-6">
-                  Welcome Back
+                  {t('auth.welcomeBack')}
                 </h1>
                 <LoginForm
                   onSuccess={handleSuccess}
@@ -126,7 +128,7 @@ export default function LoginPage() {
             {activeTab === 'register' && (
               <>
                 <h1 className="text-2xl font-bold text-white mb-6">
-                  Create Your Account
+                  {t('auth.createYourAccount')}
                 </h1>
                 <RegisterForm
                   onSuccess={handleSuccess}
@@ -139,10 +141,11 @@ export default function LoginPage() {
 
         {/* Footer note */}
         <p className="text-center text-xs text-[#A8B2C1] mt-6">
-          By continuing, you agree to our{' '}
-          <span className="text-[#E8C547] cursor-pointer hover:underline">Terms of Service</span>
-          {' '}and{' '}
-          <span className="text-[#E8C547] cursor-pointer hover:underline">Privacy Policy</span>.
+          {t('auth.termsBy')}
+          <span className="text-[#E8C547] cursor-pointer hover:underline">{t('footer.links.terms')}</span>
+          {t('auth.termsAnd')}
+          <span className="text-[#E8C547] cursor-pointer hover:underline">{t('footer.links.privacy')}</span>
+          {t('auth.termsEnd')}
         </p>
       </div>
     </main>

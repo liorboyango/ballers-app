@@ -1,5 +1,5 @@
 /**
- * CheckoutForm tests — Rapyd Hosted Checkout (redirect flow).
+ * CheckoutForm tests — Airwallex Hosted Checkout (redirect flow).
  *
  * Covers:
  *   - Rendering: form fields, branding, no card UI
@@ -64,21 +64,20 @@ describe('CheckoutForm', () => {
       expect(screen.getByLabelText(/country/i)).toBeInTheDocument();
     });
 
-    it('renders the Rapyd security badge', () => {
+    it('renders the Airwallex security badge', () => {
       renderForm();
       expect(screen.getByText(/secured by/i)).toBeInTheDocument();
-      expect(screen.getByText('Rapyd')).toBeInTheDocument();
-      expect(screen.getByText(/PCI DSS Level 1/i)).toBeInTheDocument();
+      expect(screen.getByText('Airwallex')).toBeInTheDocument();
     });
 
-    it('explains that the user will be redirected to Rapyd', () => {
+    it('explains that the user will be redirected to Airwallex', () => {
       renderForm();
-      expect(screen.getByText(/redirected to rapyd/i)).toBeInTheDocument();
+      expect(screen.getByText(/redirected to airwallex/i)).toBeInTheDocument();
     });
 
     it('does NOT render any card-collection UI', () => {
       renderForm();
-      expect(screen.queryByTestId('rapyd-card-element')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('airwallex-card-element')).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/card number/i)).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/cvv/i)).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/expiry/i)).not.toBeInTheDocument();
@@ -121,11 +120,11 @@ describe('CheckoutForm', () => {
   });
 
   describe('Submit flow', () => {
-    it('calls createCheckoutSession with shippingAddress, then redirects to Rapyd', async () => {
+    it('calls createCheckoutSession with shippingAddress, then redirects to Airwallex', async () => {
       const user = userEvent.setup();
       createCheckoutSession.mockResolvedValueOnce({
         checkoutId: 'ck_abc',
-        redirectUrl: 'https://sandboxcheckout.rapyd.net/?token=ck_abc',
+        redirectUrl: 'https://checkout.airwallex.com/?token=ck_abc',
       });
 
       renderForm();
@@ -148,7 +147,7 @@ describe('CheckoutForm', () => {
 
       await waitFor(() => {
         expect(assignSpy).toHaveBeenCalledWith(
-          'https://sandboxcheckout.rapyd.net/?token=ck_abc'
+          'https://checkout.airwallex.com/?token=ck_abc'
         );
       });
     });

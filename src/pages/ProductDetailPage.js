@@ -9,14 +9,16 @@ import { useCart } from '../context/CartContext';
 import { useProduct, useProducts } from '../hooks/useProducts';
 import { getProductImage, getProductImages } from '../utils/imageUrl';
 import { SIZES } from '../utils/constants';
+import { useTranslation } from '../context/LanguageContext';
 
 function CompleteTheKit({ excludeId }) {
+  const { t } = useTranslation();
   const { products, loading } = useProducts({ limit: 4 });
   const list = (products || []).filter((p) => (p._id || p.id) !== excludeId).slice(0, 3);
 
   return (
     <section className="mt-16">
-      <h2 className="text-display text-2xl text-ink mb-5">Complete the Kit</h2>
+      <h2 className="text-display text-2xl text-ink mb-5">{t('product.completeTheKit')}</h2>
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
@@ -31,7 +33,7 @@ function CompleteTheKit({ excludeId }) {
           ))}
         </div>
       ) : list.length === 0 ? (
-        <p className="text-sm text-ink-muted">No related products yet.</p>
+        <p className="text-sm text-ink-muted">{t('product.noRelated')}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {list.map((r) => {
@@ -92,6 +94,7 @@ function DetailSkeleton() {
 
 function ProductDetailPage() {
   const { id } = useParams();
+  const { t } = useTranslation();
   const { product, loading, error } = useProduct(id);
   const { addItem: addToCart } = useCart();
 
@@ -111,7 +114,7 @@ function ProductDetailPage() {
   const handleAddToCart = async () => {
     if (!product) return;
     if (!selectedSize) {
-      setSizeError('Please select a size');
+      setSizeError(t('product.selectSizeError'));
       return;
     }
     setSizeError('');
@@ -131,7 +134,7 @@ function ProductDetailPage() {
       setAddedToCart(true);
       setTimeout(() => setAddedToCart(false), 2000);
     } catch (err) {
-      setAddError(err.message || 'Failed to add to cart');
+      setAddError(err.message || t('product.addFailed'));
     } finally {
       setAdding(false);
     }
@@ -140,20 +143,20 @@ function ProductDetailPage() {
   return (
     <div className="page-enter min-h-screen">
       <div className="container-ballers py-8">
-        <nav className="text-xs text-ink-muted mb-6" aria-label="Breadcrumb">
-          <Link to="/" className="hover:text-brand">Home</Link>
+        <nav className="text-xs text-ink-muted mb-6" aria-label={t('product.breadcrumbAria')}>
+          <Link to="/" className="hover:text-brand">{t('nav.home')}</Link>
           <span className="mx-2">/</span>
-          <Link to="/products" className="hover:text-brand">Shop</Link>
+          <Link to="/products" className="hover:text-brand">{t('nav.shop')}</Link>
           <span className="mx-2">/</span>
-          <span className="text-ink">{product?.name || 'Product'}</span>
+          <span className="text-ink">{product?.name || t('product.fallbackName')}</span>
         </nav>
 
         {error ? (
           <div className="card p-10 text-center">
             <p className="text-accent-danger text-sm">
-              {typeof error === 'string' ? error : 'Failed to load product.'}
+              {typeof error === 'string' ? error : t('product.loadError')}
             </p>
-            <Link to="/products" className="btn-secondary mt-4">Back to Shop</Link>
+            <Link to="/products" className="btn-secondary mt-4">{t('product.backToShop')}</Link>
           </div>
         ) : loading || !product ? (
           <DetailSkeleton />
@@ -166,7 +169,7 @@ function ProductDetailPage() {
                   {images[activeImage] ? (
                     <img
                       src={images[activeImage]}
-                      alt={`${product.name} - view ${activeImage + 1}`}
+                      alt={t('product.imageAlt', { name: product.name, n: activeImage + 1 })}
                       className="w-full h-full object-cover"
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
@@ -183,7 +186,7 @@ function ProductDetailPage() {
                         className={`aspect-square rounded-lg overflow-hidden border-2 transition-colors flex items-center justify-center bg-surface-sunken ${
                           activeImage === idx ? 'border-brand' : 'border-line hover:border-ink-faint'
                         }`}
-                        aria-label={`View image ${idx + 1}`}
+                        aria-label={t('product.viewImageAria', { n: idx + 1 })}
                         aria-pressed={activeImage === idx}
                       >
                         <img
@@ -201,7 +204,7 @@ function ProductDetailPage() {
               {/* Details */}
               <div className="card p-6 lg:p-8">
                 {product.kitType && (
-                  <span className="badge-edition">{product.kitType.toUpperCase()} KIT</span>
+                  <span className="badge-edition">{t('product.kitBadge', { type: product.kitType.toUpperCase() })}</span>
                 )}
                 <h1 className="text-display text-3xl text-ink mt-3">{product.name}</h1>
                 <p className="text-2xl font-bold text-ink mt-2">${Number(product.price ?? 0).toFixed(2)}</p>
@@ -214,10 +217,10 @@ function ProductDetailPage() {
 
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-sm font-semibold text-ink">Select Size</h2>
-                    <button className="text-xs text-brand hover:underline">Size Guide</button>
+                    <h2 className="text-sm font-semibold text-ink">{t('product.selectSize')}</h2>
+                    <button className="text-xs text-brand hover:underline">{t('product.sizeGuide')}</button>
                   </div>
-                  <div className="flex flex-wrap gap-2" role="group" aria-label="Select size">
+                  <div className="flex flex-wrap gap-2" role="group" aria-label={t('product.selectSize')}>
                     {sizes.map((size) => (
                       <button
                         key={size}
@@ -242,8 +245,8 @@ function ProductDetailPage() {
                       onChange={(e) => setPersonalize(e.target.checked)}
                       className="w-4 h-4 rounded border-line text-brand focus:ring-brand/40"
                     />
-                    <span className="text-sm font-semibold text-ink">Personalize</span>
-                    <span className="text-xs text-ink-muted">Add a name & number to make it your own (+$15)</span>
+                    <span className="text-sm font-semibold text-ink">{t('product.personalize')}</span>
+                    <span className="text-xs text-ink-muted">{t('product.personalizeHint')}</span>
                   </label>
 
                   {personalize && (
@@ -252,9 +255,9 @@ function ProductDetailPage() {
                         type="text"
                         value={playerName}
                         onChange={(e) => setPlayerName(e.target.value.toUpperCase().slice(0, 20))}
-                        placeholder="Name"
+                        placeholder={t('product.namePlaceholder')}
                         className="input-field text-sm"
-                        aria-label="Player name"
+                        aria-label={t('product.playerNameAria')}
                       />
                       <input
                         type="number"
@@ -263,11 +266,11 @@ function ProductDetailPage() {
                           const v = e.target.value;
                           if (v === '' || (Number(v) >= 1 && Number(v) <= 99)) setPlayerNumber(v);
                         }}
-                        placeholder="Number"
+                        placeholder={t('product.numberPlaceholder')}
                         min="1"
                         max="99"
                         className="input-field text-sm"
-                        aria-label="Player number"
+                        aria-label={t('product.playerNumberAria')}
                       />
                     </div>
                   )}
@@ -277,15 +280,19 @@ function ProductDetailPage() {
                   onClick={handleAddToCart}
                   disabled={adding}
                   className={`btn-primary w-full mt-6 text-base py-4 ${addedToCart ? 'bg-brand-dark' : ''} ${adding ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  aria-label="Add to cart"
+                  aria-label={t('product.addToCartAria')}
                 >
-                  {adding ? 'Adding...' : addedToCart ? '✓ Added to Cart' : `Add to Cart — $${Number(product.price ?? 0).toFixed(2)}`}
+                  {adding
+                    ? t('product.adding')
+                    : addedToCart
+                      ? `✓ ${t('product.addedToCart')}`
+                      : t('product.addToCartAmount', { amount: `$${Number(product.price ?? 0).toFixed(2)}` })}
                 </button>
                 {addError && (
                   <p className="text-accent-danger text-xs mt-2" role="alert">{addError}</p>
                 )}
                 <p className="text-center text-xs text-ink-muted mt-3">
-                  <span aria-hidden="true">🚚</span> Free shipping
+                  <span aria-hidden="true">🚚</span> {t('product.freeShipping')}
                 </p>
               </div>
             </div>

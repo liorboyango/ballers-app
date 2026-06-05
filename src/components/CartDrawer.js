@@ -15,9 +15,11 @@ import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../context/LanguageContext';
 import { getProductImage as resolveProductImage } from '../utils/imageUrl';
 
 const CartDrawer = () => {
+  const { t } = useTranslation();
   const {
     items,
     totalItems,
@@ -99,15 +101,17 @@ const CartDrawer = () => {
         `}
         role="dialog"
         aria-modal="true"
-        aria-label="Shopping cart"
+        aria-label={t('cart.drawerAria')}
       >
         {/* Drawer header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#2A3550]">
-          <h2 className="text-lg font-bold text-white">
-            YOUR CART
+          <h2 className="text-lg font-bold text-white uppercase">
+            {t('cart.drawerTitle')}
             {totalItems > 0 && (
               <span className="ml-2 text-sm font-normal text-[#A8B2C1]">
-                ({totalItems} item{totalItems !== 1 ? 's' : ''})
+                {totalItems === 1
+                  ? t('cart.headerCountOne', { count: totalItems })
+                  : t('cart.headerCountMany', { count: totalItems })}
               </span>
             )}
           </h2>
@@ -115,7 +119,7 @@ const CartDrawer = () => {
             ref={closeButtonRef}
             onClick={closeCart}
             className="p-2 text-[#A8B2C1] hover:text-white transition-colors rounded-lg hover:bg-[#0F3460]"
-            aria-label="Close cart"
+            aria-label={t('cart.closeAria')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -149,12 +153,12 @@ const CartDrawer = () => {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
-              <p className="text-[#A8B2C1] text-sm">Your cart is empty</p>
+              <p className="text-[#A8B2C1] text-sm">{t('cart.drawerEmpty')}</p>
               <button
                 onClick={closeCart}
                 className="mt-4 text-[#E8C547] text-sm font-medium hover:underline"
               >
-                Continue Shopping
+                {t('cart.continueShopping')}
               </button>
             </div>
           ) : (
@@ -197,14 +201,14 @@ const CartDrawer = () => {
                     {/* Item details */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-white truncate">
-                        {item.product?.name || 'Product'}
+                        {item.product?.name || t('cart.productFallback')}
                       </p>
                       {item.customization && (
                         <p className="text-xs text-[#A8B2C1] mt-0.5">
                           {[
                             item.customization.number && `#${item.customization.number}`,
                             item.customization.name,
-                            item.customization.size && `Size: ${item.customization.size}`,
+                            item.customization.size && t('cart.sizeLabel', { size: item.customization.size }),
                           ]
                             .filter(Boolean)
                             .join(' / ')}
@@ -219,7 +223,7 @@ const CartDrawer = () => {
                         <button
                           onClick={() => handleQuantityChange(item._id, item.quantity - 1)}
                           className="w-7 h-7 rounded border border-[#2A3550] text-[#A8B2C1] hover:text-white hover:border-[#E8C547] transition-colors flex items-center justify-center text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                          aria-label={`Decrease quantity of ${item.product?.name}`}
+                          aria-label={t('cart.decreaseQtyOf', { name: item.product?.name || t('cart.productFallback') })}
                           disabled={item.quantity <= 1}
                         >
                           −
@@ -230,7 +234,7 @@ const CartDrawer = () => {
                         <button
                           onClick={() => handleQuantityChange(item._id, item.quantity + 1)}
                           className="w-7 h-7 rounded border border-[#2A3550] text-[#A8B2C1] hover:text-white hover:border-[#E8C547] transition-colors flex items-center justify-center text-sm"
-                          aria-label={`Increase quantity of ${item.product?.name}`}
+                          aria-label={t('cart.increaseQtyOf', { name: item.product?.name || t('cart.productFallback') })}
                         >
                           +
                         </button>
@@ -241,7 +245,7 @@ const CartDrawer = () => {
                     <button
                       onClick={() => removeFromCart(item._id)}
                       className="text-[#A8B2C1] hover:text-red-400 transition-colors p-1 self-start"
-                      aria-label={`Remove ${item.product?.name} from cart`}
+                      aria-label={t('cart.removeFromCartAria', { name: item.product?.name || t('cart.productFallback') })}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
@@ -264,19 +268,19 @@ const CartDrawer = () => {
           <div className="px-6 py-4 border-t border-[#2A3550] space-y-3">
             {/* Subtotal */}
             <div className="flex justify-between text-sm">
-              <span className="text-[#A8B2C1]">Subtotal</span>
+              <span className="text-[#A8B2C1]">{t('cart.subtotal')}</span>
               <span className="text-white font-medium">${totalPrice.toFixed(2)}</span>
             </div>
 
             {/* Shipping */}
             <div className="flex justify-between text-sm">
-              <span className="text-[#A8B2C1]">Shipping</span>
-              <span className="text-[#27AE60] font-medium">Free</span>
+              <span className="text-[#A8B2C1]">{t('cart.shipping')}</span>
+              <span className="text-[#27AE60] font-medium">{t('cart.free')}</span>
             </div>
 
             {/* Total */}
             <div className="flex justify-between text-base font-bold border-t border-[#2A3550] pt-3">
-              <span className="text-white">Total</span>
+              <span className="text-white">{t('cart.total')}</span>
               <span className="text-[#E8C547]">
                 ${totalPrice.toFixed(2)}
               </span>
@@ -287,7 +291,7 @@ const CartDrawer = () => {
               onClick={handleCheckout}
               className="w-full bg-[#E8C547] text-[#1A1A2E] font-bold uppercase tracking-wider py-3 rounded-lg hover:bg-[#D4A800] transition-colors"
             >
-              Proceed to Checkout
+              {t('cart.proceedToCheckout')}
             </button>
 
             {/* Continue shopping */}
@@ -295,7 +299,7 @@ const CartDrawer = () => {
               onClick={closeCart}
               className="w-full border border-[#2A3550] text-[#A8B2C1] font-medium py-2.5 rounded-lg hover:border-[#E8C547] hover:text-white transition-colors text-sm"
             >
-              Continue Shopping
+              {t('cart.continueShopping')}
             </button>
           </div>
         )}

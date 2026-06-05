@@ -10,7 +10,7 @@
  * Displays:
  *   - Animated checkmark
  *   - Order confirmation message
- *   - Order details (ID, Rapyd payment reference, status, total, shipping)
+ *   - Order details (ID, Airwallex payment reference, status, total, shipping)
  *   - PENDING status banner (async payment methods)
  *   - Continue Shopping CTA
  *
@@ -24,6 +24,9 @@ import React, { useEffect } from 'react';
 import { Link, useParams, useLocation } from 'react-router-dom';
 import { useOrder } from '../hooks/useOrders';
 import { LoadingSpinner } from '../components/ui';
+import { useTranslation } from '../context/LanguageContext';
+
+const PAYMENT_PROVIDER = 'Airwallex';
 
 /** Format a number as USD currency string */
 const formatPrice = (amount) =>
@@ -32,25 +35,25 @@ const formatPrice = (amount) =>
     : null;
 
 /**
- * Map Rapyd / backend order statuses to a user-friendly display label
+ * Map Airwallex / backend order statuses to a user-friendly display label
  * and colour class.
  *
  * @param {string} status - Raw order status from API
  * @returns {{ label: string, className: string, isPending: boolean, isFailed: boolean }}
  */
-function getStatusDisplay(status) {
+function getStatusDisplay(status, t) {
   const s = (status || '').toLowerCase();
   if (s === 'paid' || s === 'confirmed' || s === 'succeeded' || s === 'activated') {
-    return { label: 'Confirmed', className: 'text-green-400', isPending: false, isFailed: false };
+    return { label: t('checkout.statusConfirmed'), className: 'text-green-400', isPending: false, isFailed: false };
   }
   if (s === 'pending' || s === 'processing') {
-    return { label: 'Processing', className: 'text-[#E8C547]', isPending: true, isFailed: false };
+    return { label: t('checkout.statusProcessing'), className: 'text-[#E8C547]', isPending: true, isFailed: false };
   }
   if (s === 'shipped') {
-    return { label: 'Shipped', className: 'text-blue-400', isPending: false, isFailed: false };
+    return { label: t('checkout.statusShipped'), className: 'text-blue-400', isPending: false, isFailed: false };
   }
   if (s === 'delivered') {
-    return { label: 'Delivered', className: 'text-green-400', isPending: false, isFailed: false };
+    return { label: t('checkout.statusDelivered'), className: 'text-green-400', isPending: false, isFailed: false };
   }
   if (
     s === 'payment_failed' ||
@@ -59,14 +62,14 @@ function getStatusDisplay(status) {
     s === 'cancelled'
   ) {
     return {
-      label: 'Payment Failed',
+      label: t('checkout.statusFailed'),
       className: 'text-red-400',
       isPending: false,
       isFailed: true,
     };
   }
   return {
-    label: status || 'Confirmed',
+    label: status || t('checkout.statusConfirmed'),
     className: 'text-[#A8B2C1]',
     isPending: false,
     isFailed: false,
@@ -75,10 +78,11 @@ function getStatusDisplay(status) {
 
 /**
  * Informational banner shown when the payment is still pending confirmation
- * from Rapyd (e.g., bank transfer, 3DS delay, async payment methods).
+ * from Airwallex (e.g., bank transfer, 3DS delay, async payment methods).
  * The webhook will update the order status once payment completes.
  */
 function PendingPaymentBanner() {
+  const { t } = useTranslation();
   return (
     <div
       role="status"
@@ -99,11 +103,9 @@ function PendingPaymentBanner() {
         />
       </svg>
       <div>
-        <p className="font-semibold text-[#E8C547]">Payment Processing</p>
+        <p className="font-semibold text-[#E8C547]">{t('checkout.pendingTitle')}</p>
         <p className="text-[#A8B2C1] mt-1">
-          Your payment is being verified by our payment provider. This usually completes
-          within a few minutes. You will receive a confirmation email once your payment
-          is confirmed and your order is being prepared.
+          {t('checkout.pendingMessage')}
         </p>
       </div>
     </div>
@@ -115,6 +117,7 @@ function PendingPaymentBanner() {
  * Provides a support contact reference (the payment ID).
  */
 function FailedPaymentBanner({ paymentRef }) {
+  const { t } = useTranslation();
   return (
     <div
       role="alert"
@@ -136,10 +139,9 @@ function FailedPaymentBanner({ paymentRef }) {
         />
       </svg>
       <div>
-        <p className="font-semibold text-red-400">Payment Issue Detected</p>
+        <p className="font-semibold text-red-400">{t('checkout.failedBannerTitle')}</p>
         <p className="text-[#A8B2C1] mt-1">
-          There was an issue confirming your payment. If you believe you were charged,
-          please contact our support team with your payment reference:
+          {t('checkout.failedBannerMessage')}
           {paymentRef && (
             <span className="font-mono text-white ml-1">{paymentRef}</span>
           )}
@@ -152,6 +154,7 @@ function FailedPaymentBanner({ paymentRef }) {
 const OrderSuccessPage = () => {
   const { id } = useParams();
   const location = useLocation();
+  const { t } = useTranslation();
 
   // Order data passed via navigation state (from CheckoutPage handleOrderSuccess)
   const stateOrder = location.state?.order;
@@ -172,7 +175,7 @@ const OrderSuccessPage = () => {
   // ── Derived display values ────────────────────────────────────────────────
   const orderId = order?.id || order?._id || id || null;
   const orderStatus = order?.status || 'confirmed';
-  const statusDisplay = getStatusDisplay(orderStatus);
+  const statusDisplay = getStatusDisplay(orderStatus, t);
 
   const orderTotal =
     order?.totalAmount ||
@@ -182,15 +185,15 @@ const OrderSuccessPage = () => {
 
   const shippingAddress = order?.shippingAddress || null;
 
-  // Rapyd payment reference — shown when no orderId is available yet
+  // Airwallex payment reference — shown when no orderId is available yet
   // (e.g., order creation fallback scenario where webhook is still pending)
-  const rapydPaymentId = order?.rapydPaymentId || null;
+  const airwallexPaymentId = order?.airwallexPaymentId || null;
 
   // Legacy Stripe reference (kept for backwards-compat with old orders)
   const paymentIntentId = order?.paymentIntentId || null;
 
-  // The payment reference to display (prefer rapydPaymentId)
-  const paymentRef = rapydPaymentId || paymentIntentId || null;
+  // The payment reference to display (prefer airwallexPaymentId)
+  const paymentRef = airwallexPaymentId || paymentIntentId || null;
 
   return (
     <main
@@ -244,12 +247,12 @@ const OrderSuccessPage = () => {
           className="text-5xl font-black text-white tracking-wide mb-3 uppercase"
           style={{ fontFamily: "'Bebas Neue', sans-serif" }}
         >
-          {statusDisplay.isFailed ? 'Payment Issue' : 'Order Received!'}
+          {statusDisplay.isFailed ? t('checkout.failedHeading') : t('checkout.successHeading')}
         </h1>
         <p className="text-[#A8B2C1] text-lg mb-8">
           {statusDisplay.isFailed
-            ? 'We encountered an issue with your payment. Please see details below.'
-            : 'Thank you for your purchase. Your kit is on its way!'}
+            ? t('checkout.failedSubtitle')
+            : t('checkout.successSubtitle')}
         </p>
 
         {/* ── Status-specific banners ── */}
@@ -260,7 +263,7 @@ const OrderSuccessPage = () => {
         {loading ? (
           <div className="mb-8">
             <LoadingSpinner size="md" className="mx-auto" />
-            <p className="text-[#A8B2C1] text-sm mt-3">Loading order details...</p>
+            <p className="text-[#A8B2C1] text-sm mt-3">{t('checkout.loadingDetails')}</p>
           </div>
         ) : fetchError && !order ? (
           // Show a graceful error state if the API fetch failed and we have no
@@ -284,29 +287,26 @@ const OrderSuccessPage = () => {
                 clipRule="evenodd"
               />
             </svg>
-            <p className="text-red-300">
-              Unable to load order details. Please check your email for a confirmation,
-              or contact support with your order reference.
-            </p>
+            <p className="text-red-300">{t('checkout.loadError')}</p>
           </div>
         ) : (
           <div
             className="bg-[#16213E] border border-[#2A3550] rounded-2xl p-6 mb-8 text-left"
             role="region"
-            aria-label="Order details"
+            aria-label={t('checkout.orderDetails')}
           >
             <h2
               className="font-black text-xl text-white tracking-wide mb-4 uppercase"
               style={{ fontFamily: "'Bebas Neue', sans-serif" }}
             >
-              Order Details
+              {t('checkout.orderDetails')}
             </h2>
 
             <div className="space-y-3 text-sm">
               {/* Order ID */}
               {orderId && (
                 <div className="flex justify-between items-start gap-4">
-                  <span className="text-[#A8B2C1] flex-shrink-0">Order ID</span>
+                  <span className="text-[#A8B2C1] flex-shrink-0">{t('checkout.orderId')}</span>
                   <span className="text-white font-mono text-xs text-right break-all">
                     {orderId}
                   </span>
@@ -314,14 +314,14 @@ const OrderSuccessPage = () => {
               )}
 
               {/*
-               * Rapyd payment reference — displayed when:
+               * Airwallex payment reference — displayed when:
                *   a) No orderId yet (webhook latency) so user has a reference to quote
                *   b) There is an orderId but this is also available for support use
                * Only shown without an orderId to avoid visual clutter.
                */}
               {!orderId && paymentRef && (
                 <div className="flex justify-between items-start gap-4">
-                  <span className="text-[#A8B2C1] flex-shrink-0">Payment Ref</span>
+                  <span className="text-[#A8B2C1] flex-shrink-0">{t('checkout.paymentRef')}</span>
                   <span className="text-white font-mono text-xs text-right break-all">
                     {paymentRef}
                   </span>
@@ -330,13 +330,13 @@ const OrderSuccessPage = () => {
 
               {/* Payment method */}
               <div className="flex justify-between">
-                <span className="text-[#A8B2C1]">Payment</span>
-                <span className="text-white">Credit Card (Rapyd)</span>
+                <span className="text-[#A8B2C1]">{t('checkout.paymentLabel')}</span>
+                <span className="text-white">{t('checkout.paymentMethod', { provider: PAYMENT_PROVIDER })}</span>
               </div>
 
               {/* Status */}
               <div className="flex justify-between">
-                <span className="text-[#A8B2C1]">Status</span>
+                <span className="text-[#A8B2C1]">{t('checkout.status')}</span>
                 <span className={`capitalize font-medium ${statusDisplay.className}`}>
                   {statusDisplay.label}
                 </span>
@@ -345,7 +345,7 @@ const OrderSuccessPage = () => {
               {/* Total */}
               {orderTotal != null && (
                 <div className="flex justify-between">
-                  <span className="text-[#A8B2C1]">Total Charged</span>
+                  <span className="text-[#A8B2C1]">{t('checkout.totalCharged')}</span>
                   <span className="text-[#E8C547] font-bold">
                     {formatPrice(orderTotal)}
                   </span>
@@ -355,7 +355,7 @@ const OrderSuccessPage = () => {
               {/* Shipping address */}
               {shippingAddress && (
                 <div className="pt-3 border-t border-[#2A3550]">
-                  <p className="text-[#A8B2C1] mb-1">Shipping to</p>
+                  <p className="text-[#A8B2C1] mb-1">{t('checkout.shippingTo')}</p>
                   <p className="text-white">
                     {[shippingAddress.firstName, shippingAddress.lastName]
                       .filter(Boolean)
@@ -381,7 +381,7 @@ const OrderSuccessPage = () => {
         <p className="text-[#A8B2C1] text-sm mb-8">
           {statusDisplay.isFailed ? (
             <>
-              If you need assistance, please contact{' '}
+              {t('checkout.supportPrefix')}
               <a
                 href="mailto:support@ballers.store"
                 className="text-[#E8C547] hover:underline"
@@ -389,16 +389,16 @@ const OrderSuccessPage = () => {
                 support@ballers.store
               </a>
               {paymentRef && (
-                <> and quote payment reference <span className="font-mono text-white">{paymentRef}</span>.</>  
+                <>{t('checkout.supportQuoteRef')}<span className="font-mono text-white">{paymentRef}</span>.</>
               )}
             </>
           ) : (
             <>
-              A confirmation email will be sent to{' '}
+              {t('checkout.emailConfirmPrefix')}
               <span className="text-white font-medium">
-                {order?.shippingAddress?.email || 'your email address'}
+                {order?.shippingAddress?.email || t('checkout.emailConfirmFallback')}
               </span>
-              . Orders typically ship within 2\u20133 business days.
+              {t('checkout.emailConfirmSuffix')}
             </>
           )}
         </p>
@@ -409,13 +409,13 @@ const OrderSuccessPage = () => {
             to="/products"
             className="px-8 py-3 bg-[#E8C547] text-[#1A1A2E] font-bold uppercase tracking-wider rounded-lg hover:bg-[#D4A800] transition-colors text-sm"
           >
-            Continue Shopping
+            {t('checkout.continueShopping')}
           </Link>
           <Link
             to="/"
             className="px-8 py-3 border border-[#2A3550] text-[#A8B2C1] rounded-lg hover:border-[#E8C547] hover:text-white transition-colors text-sm"
           >
-            Back to Home
+            {t('checkout.backToHome')}
           </Link>
         </div>
       </div>
